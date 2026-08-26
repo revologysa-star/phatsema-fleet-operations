@@ -1,3 +1,0 @@
--- Applied to Supabase project fduccizawxtqnqtuxmjl on 2026-08-26.
--- This migration is included for reproducibility.
--- See deployed project migration: repair_phatsema_fleet_workflows_and_analytics.
