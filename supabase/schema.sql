@@ -1,0 +1,3 @@
+-- Phatsema Fleet Operations database schema
+-- Full schema is retained in the uploaded production build.
+-- See the project repository for the applied Supabase migration.
