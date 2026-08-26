@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phatsema Fleet Operations</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#080a0b;--panel:#101416;--panel2:#151a1c;--line:#ffffff14;--text:#f5f5f5;--muted:#9da5a8;--gold:#e8b84b;--red:#e15b50;--green:#55c879;--blue:#4fa4df;--amber:#e7a84a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% -10%,#292117 0,#0b0d0e 34%,#080a0b 70%);color:var(--text);font:14px Inter,system-ui,Segoe UI,Arial,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}
+.hidden{display:none!important}.app{min-height:100vh}.top{height:70px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:#090b0cdd;backdrop-filter:blur(10px);position:sticky;top:0;z-index:10}.brand{display:flex;gap:12px;align-items:center}.brand img{width:46px;height:46px;object-fit:contain;border-radius:8px;background:#fff}.brand b{font-size:15px}.brand span{display:block;color:var(--muted);font-size:11px;margin-top:3px}.userbox{display:flex;gap:10px;align-items:center}.pill{border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-size:12px}
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 70px)}aside{border-right:1px solid var(--line);padding:18px 12px;background:#0b0e0f}.nav{display:grid;gap:6px}.nav button{background:transparent;border:0;color:#aeb5b7;text-align:left;padding:11px 12px;border-radius:8px}.nav button:hover,.nav button.active{background:#ffffff0d;color:#fff}.nav button.active{box-shadow:inset 3px 0 var(--gold)}main{padding:24px;max-width:1500px;width:100%;margin:auto}.view{display:none}.view.active{display:block}.hero{border:1px solid var(--line);border-radius:14px;overflow:hidden;min-height:180px;display:flex;align-items:end;padding:22px;background:linear-gradient(90deg,#0c0f10ee 0%,#0c0f1090 50%,#0c0f1030),url('/1715499025783.jpg') center/cover;margin-bottom:16px}.hero h1{font-size:28px;margin:0 0 5px}.hero p{margin:0;color:#c6cbcc}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card,.panel{background:linear-gradient(145deg,#151a1c,#0f1315);border:1px solid var(--line);border-radius:12px}.card{padding:16px}.metric{font-size:30px;font-weight:850;margin-top:8px}.muted{color:var(--muted)}.green{color:var(--green)}.red{color:var(--red)}.gold{color:var(--gold)}.blue{color:var(--blue)}.amber{color:var(--amber)}.panel{padding:16px;margin-top:16px}.panelhead{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}.panel h2{font-size:16px;margin:0}.btn{background:var(--gold);border:0;color:#111;font-weight:800;padding:10px 13px;border-radius:8px}.btn.alt{background:#ffffff0b;color:#fff;border:1px solid var(--line)}.btn.danger{background:#6b2420;color:#fff}.btn.small{padding:7px 9px;font-size:12px}.search{display:flex;gap:8px;margin-bottom:12px}.search input,.field input,.field select,.field textarea,.login input{width:100%;background:#0a0d0e;border:1px solid #ffffff18;color:#fff;padding:10px;border-radius:8px;outline:none}.search input:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#e8b84b66}.tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 8px;border-bottom:1px solid #ffffff0c;text-align:left;vertical-align:top}.table th{color:#aeb5b7;font-size:11px;text-transform:uppercase}.status{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800}.status.working{background:#1b4e31;color:#79e29c}.status.available{background:#183e55;color:#76c8f4}.status.breakdown{background:#5d2522;color:#ff9a91}.status.maintenance{background:#5a451c;color:#ffd279}.status.offline{background:#33383a;color:#c2c8ca}.attention{border-left:3px solid var(--red);padding:10px 12px;background:#35171655;border-radius:7px;margin:8px 0}.empty{padding:30px;text-align:center;color:var(--muted)}.modal{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;padding:20px;z-index:30}.modalbox{max-width:620px;width:100%;max-height:90vh;overflow:auto;background:#111618;border:1px solid #ffffff1b;border-radius:14px;padding:18px;box-shadow:0 20px 80px #000}.modalhead{display:flex;justify-content:space-between;align-items:center}.close{background:transparent;border:0;color:#aaa;font-size:22px}.fields{display:grid;gap:11px}.field label{display:block;color:#bfc5c7;font-size:12px;margin-bottom:5px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.notice{padding:10px 12px;background:#1a1e20;border:1px solid var(--line);border-radius:8px;color:#c5cacc}.loginwrap{min-height:100vh;display:grid;place-items:center;padding:20px}.login{max-width:440px;width:100%;background:#111618;border:1px solid var(--line);border-radius:16px;padding:24px}.login .logo{width:100px;height:70px;object-fit:contain;background:#fff;border-radius:10px;margin-bottom:15px}.login h1{margin:0 0 4px}.login p{color:var(--muted)}.login .field{margin-top:12px}.login .btn{width:100%;margin-top:14px}.kpirow{display:flex;gap:10px;flex-wrap:wrap}.mini{padding:8px 10px;background:#ffffff08;border:1px solid var(--line);border-radius:8px}.guide{display:grid;grid-template-columns:1fr 1fr;gap:12px}.guide .panel{margin:0}.photo{max-width:100px;max-height:70px;border-radius:6px;border:1px solid var(--line)}@media(max-width:900px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line);position:sticky;top:70px;z-index:8}.nav{grid-template-columns:repeat(3,1fr)}main{padding:15px}.grid{grid-template-columns:repeat(2,1fr)}.guide{grid-template-columns:1fr}}@media(max-width:560px){.top{padding:0 12px}.layout{min-height:auto}.nav{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr 1fr}.twocol{grid-template-columns:1fr}.hero h1{font-size:22px}.userbox .pill{display:none}}
+</style>
+</head>
+<body>
+<div id="loginScreen" class="loginwrap">
+  <div class="login">
+    <img class="logo" src="https://phatsema.com/wp-content/uploads/2025/04/PHATSEMA-PROJECTS-LOGO.png" alt="Phatsema Projects & Supplies">
+    <h1>Phatsema Fleet Operations</h1><p>Phatsema Projects & Supplies</p>
+    <div class="notice">Sign in with your <b>email or username</b>. Your role controls what you can do.</div>
+    <div class="field"><label>Email or username</label><input id="loginId" autocomplete="username" placeholder="you@example.com or username"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div>
+    <button class="btn" onclick="login()">Sign in</button>
+    <button class="btn alt" style="width:100%;margin-top:8px" onclick="forgotPassword()">Forgot password?</button>
+    <div id="loginMsg" class="muted" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+<header class="top">
+  <div class="brand"><img src="https://phatsema.com/wp-content/uploads/2025/04/PHATSEMA-PROJECTS-LOGO.png" alt="Phatsema Projects & Supplies"><div><b>PHATSEMA FLEET OPERATIONS</b><span>Phatsema Fleet Operations · Operations Control</span></div></div>
+  <div class="userbox"><span id="rolePill" class="pill"></span><span id="userName" class="pill"></span><button class="btn alt small" onclick="signOut()">Sign out</button></div>
+</header>
+<div class="layout">
+<aside><div class="nav" id="nav">
+<button data-view="dashboard" onclick="showView('dashboard')">◉ Dashboard</button>
+<button data-view="machines" onclick="showView('machines')">🚜 Machines</button>
+<button data-view="breakdowns" onclick="showView('breakdowns')">🚨 Breakdowns</button>
+<button data-view="services" onclick="showView('services')">🔧 Service</button>
+<button data-view="people" class="manage-only" onclick="showView('people')">👥 People</button>
+<button data-view="settings" class="manage-only" onclick="showView('settings')">⚙ Settings</button>
+<button data-view="audit" class="manage-only" onclick="showView('audit')">▣ Audit</button>
+<button data-view="guide" onclick="showView('guide')">▤ Training Guide</button>
+</div></aside>
+<main>
+<section id="dashboard" class="view active">
+<div class="hero"><div><h1>Phatsema Fleet Operations</h1><p>One operational picture for your entire fleet.</p></div></div>
+<div class="grid">
+<div class="card"><div class="muted">Working Now</div><div id="workingPct" class="metric green">—</div><div id="workingCount" class="muted">—</div></div>
+<div class="card"><div class="muted">Operational</div><div id="operationalPct" class="metric blue">—</div><div class="muted">Working + Available</div></div>
+<div class="card"><div class="muted">Breakdowns</div><div id="breakdownCount" class="metric red">—</div><div class="muted">Downtime visible</div></div>
+<div class="card"><div class="muted">Fleet</div><div id="fleetCount" class="metric gold">—</div><div class="muted">Active machines</div></div>
+</div>
+<div class="panel"><div class="panelhead"><h2>Needs attention</h2><button class="btn alt small" onclick="refreshAll()">Refresh</button></div><div id="attention"></div></div>
+<div class="panel"><div class="panelhead"><h2>Fleet snapshot</h2></div><div id="snapshot" class="kpirow"></div></div>
+</section>
+
+<section id="machines" class="view">
+<div class="panel"><div class="panelhead"><div><h2>Machines</h2><div class="muted">Search by machine name, Fleet ID, model or site.</div></div><button class="btn manage-only" onclick="openMachine()">+ Add Machine</button></div>
+<div class="search"><input id="machineSearch" placeholder="Type CAT 320, 0320, plant, site..." oninput="renderMachines()"></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Machine</th><th>Status</th><th>Hours</th><th>Site</th><th>Last confirmed</th><th></th></tr></thead><tbody id="machineRows"></tbody></table></div></div>
+</section>
+
+<section id="breakdowns" class="view">
+<div class="panel"><div class="panelhead"><div><h2>Breakdowns</h2><div class="muted">Report quickly. Downtime starts automatically.</div></div><button class="btn" onclick="openBreakdown()">+ Report Issue</button></div>
+<div class="search"><input id="breakdownSearch" placeholder="Search machine, Fleet ID or problem..." oninput="renderBreakdowns()"></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Machine</th><th>Problem</th><th>Reported</th><th>Downtime</th><th>Assigned</th><th>Status</th><th></th></tr></thead><tbody id="breakdownRows"></tbody></table></div></div>
+</section>
+
+<section id="services" class="view">
+<div class="panel"><div class="panelhead"><div><h2>Service History</h2><div class="muted">Protected history. Mechanics can add; management can correct.</div></div><button class="btn" onclick="openService()">+ Log Service</button></div>
+<div class="search"><input id="serviceSearch" placeholder="Search machine, Fleet ID, work or technician..." oninput="renderServices()"></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Recorded by</th><th>Evidence</th></tr></thead><tbody id="serviceRows"></tbody></table></div></div>
+</section>
+
+<section id="people" class="view">
+<div class="panel"><div class="panelhead"><div><h2>People & Access</h2><div class="muted">Live employee roles and account status from the secure Supabase user system.</div></div></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Employee</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="peopleRows"></tbody></table></div></div>
+</section>
+
+<section id="settings" class="view">
+<div class="panel"><div class="panelhead"><div><h2>Operations Settings</h2><div class="muted">Changes here affect the whole fleet.</div></div></div>
+<div class="fields">
+<div class="twocol"><div class="field"><label>Default service interval (hours)</label><input id="setInterval" type="number"></div><div class="field"><label>Service warning (hours before due)</label><input id="setWarning" type="number"></div></div>
+<div class="twocol"><div class="field"><label>Working confirmation age (hours)</label><input id="setConfirm" type="number"></div><div class="field"><label>Photo evidence required</label><select id="setPhotos"><option value="false">No</option><option value="true">Yes</option></select></div></div>
+<div class="twocol"><div class="field"><label>WhatsApp alert number</label><input id="setWhatsApp" type="tel" placeholder="e.g. 27821234567"></div><div class="field"><label>WhatsApp alerts</label><select id="setWhatsAppEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div></div><div class="notice">WhatsApp alerts open the authorised WhatsApp conversation with the exact alert pre-filled. Fully automatic background sending can be enabled later through a WhatsApp Business API Edge Function without exposing API secrets in this app.</div><button class="btn" onclick="saveSettings()">Save settings</button> <button class="btn alt" onclick="testWhatsApp()">Test WhatsApp</button>
+</div></div>
+</section>
+
+<section id="audit" class="view">
+<div class="panel"><div class="panelhead"><div><h2>Audit Trail</h2><div class="muted">Who changed what and when.</div></div></div><div class="tablewrap"><table class="table"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody id="auditRows"></tbody></table></div></div>
+</section>
+
+<section id="guide" class="view">
+<div class="panel"><h2>Training Guide</h2><p class="muted">The system is designed around a simple rule: record what happened, when it happened and which machine it happened to.</p></div>
+<div class="guide">
+<div class="panel"><h2>👷 Assistant / Mechanic</h2><p>Find the machine → report an issue or log service → add notes/photos → save. You can view history, but protected historical records cannot be rewritten.</p></div>
+<div class="panel"><h2>🧭 Foreman</h2><p>Review breakdowns, assign technicians, verify repairs, manage machines and make authorised historical corrections.</p></div>
+<div class="panel"><h2>📊 Operations Manager</h2><p>Monitor the fleet, manage people/machines/settings, review downtime and keep the Action Queue under control.</p></div>
+<div class="panel"><h2>👑 Head of Operations</h2><p>Full visibility and control. Use the audit trail for accountability and review the fleet picture before making operational decisions.</p></div>
+</div>
+<div class="panel"><h2>Fast workflow</h2><p><b>Problem:</b> Search machine → Report Issue → Describe → Photo → Submit.</p><p><b>Service:</b> Search machine → Log Service → Work → Hours → Photo → Save.</p><p><b>Repair:</b> Management verifies → resolves breakdown → downtime stops → machine returns to Working.</p></div>
+</section>
+</main></div></div>
+
+<div id="modal" class="modal hidden"><div class="modalbox"><div class="modalhead"><h2 id="modalTitle"></h2><button class="close" onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
+
+<script>
+const SUPA_URL="https://fduccizawxtqnqtuxmjl.supabase.co";
+const SUPA_KEY="sb_publishable_BzL4VuUfWGSLOHY-9vsnuw_d5nQp0dx";
+const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+let me=null,profile=null,machines=[],breakdowns=[],services=[],profiles=[],settings={};
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate=d=>d?new Date(d).toLocaleString():'—';
+const roleLabel=r=>({assistant_mechanic:'Assistant / Mechanic',foreman:'Foreman',operations_manager:'Operations Manager',head_of_operations:'Head of Operations'}[r]||r);
+const canManage=()=>['foreman','operations_manager','head_of_operations'].includes(profile?.role);
+const canEditHistory=()=>canManage();
+const isHead=()=>profile?.role==='head_of_operations';
+
+function showView(v){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(v)?.classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.view===v)); if(v==='machines')renderMachines();if(v==='breakdowns')renderBreakdowns();if(v==='services')renderServices();if(v==='people')renderPeople();if(v==='audit')renderAudit();if(v==='settings')loadSettings();}
+
+async function boot(){
+ const {data:{session}}=await sb.auth.getSession();
+ if(session){await loadMe();} else showLogin();
+ sb.auth.onAuthStateChange(async(_e,s)=>{if(s) await loadMe(); else showLogin();});
+}
+async function loadMe(){
+ const {data:{user}}=await sb.auth.getUser(); if(!user){showLogin();return}
+ me=user;
+ const {data:p,error}=await sb.from('profiles').select('*').eq('id',user.id).single();
+ if(error||!p||!p.active){await sb.auth.signOut();showLogin();return}
+ profile=p;
+ document.getElementById('loginScreen').classList.add('hidden');document.getElementById('app').classList.remove('hidden');
+ document.getElementById('rolePill').textContent=roleLabel(p.role);document.getElementById('userName').textContent=p.full_name||p.username;
+ document.querySelectorAll('.manage-only').forEach(x=>x.classList.toggle('hidden',!canManage()));
+ await refreshAll(); showView('dashboard');
+}
+function showLogin(){document.getElementById('loginScreen').classList.remove('hidden');document.getElementById('app').classList.add('hidden')}
+async function login(){
+ const id=document.getElementById('loginId').value.trim(),pw=document.getElementById('loginPassword').value;
+ const msg=document.getElementById('loginMsg'); msg.textContent='Signing in…';
+ if(!id||!pw){msg.textContent='Enter your username/email and password.';return}
+ if(id.includes('@')){
+   const {error}=await sb.auth.signInWithPassword({email:id,password:pw});
+   msg.textContent=error?error.message:'';
+   return;
+ }
+ const {data,error}=await sb.functions.invoke('username-login-v1',{body:{username:id,password:pw}});
+ if(error||data?.error){msg.textContent=data?.error||error.message||'Unable to sign in.';return}
+ if(data?.session){await sb.auth.setSession(data.session);msg.textContent='';return}
+ msg.textContent='Unable to create a session.';
+}
+async function forgotPassword(){
+ const id=document.getElementById('loginId').value.trim();if(!id.includes('@')){document.getElementById('loginMsg').textContent='Enter your work email to reset your password.';return}
+ const {error}=await sb.auth.resetPasswordForEmail(id,{redirectTo:location.origin});document.getElementById('loginMsg').textContent=error?error.message:'Password reset email sent.';
+}
+async function signOut(){await sb.auth.signOut()}
+
+async function refreshAll(){
+ const [m,b,s,set]=await Promise.all([
+ sb.from('machines').select('*').order('name'),
+ sb.from('breakdowns').select('*, machines(name,fleet_id), profiles!breakdowns_reported_by_fkey(full_name), assigned:profiles!breakdowns_assigned_to_fkey(full_name)').order('started_at',{ascending:false}),
+ sb.from('services').select('*, machines(name,fleet_id), profiles!services_recorded_by_fkey(full_name)').order('service_date',{ascending:false}),
+ sb.from('app_settings').select('*')
+ ]);
+ machines=m.data||[];breakdowns=b.data||[];services=s.data||[];(set.data||[]).forEach(x=>settings[x.key]=x.value);
+ renderDashboard();renderMachines();renderBreakdowns();renderServices();
+}
+function renderDashboard(){
+ const active=machines.filter(m=>m.active),counts={working:0,available:0,breakdown:0,maintenance:0,offline:0};active.forEach(m=>counts[m.status]++);
+ const wp=active.length?Math.round(counts.working/active.length*1000)/10:0,op=active.length?Math.round((counts.working+counts.available)/active.length*1000)/10:0;
+ document.getElementById('workingPct').textContent=wp+'%';document.getElementById('workingCount').textContent=`${counts.working} working of ${active.length}`;
+ document.getElementById('operationalPct').textContent=op+'%';document.getElementById('breakdownCount').textContent=counts.breakdown;document.getElementById('fleetCount').textContent=active.length;
+ document.getElementById('snapshot').innerHTML=Object.entries(counts).map(([k,v])=>`<span class="mini">${k[0].toUpperCase()+k.slice(1)} <b>${v}</b></span>`).join('');
+ const open=breakdowns.filter(b=>!b.resolved_at);let attention=open.slice(0,8).map(b=>`<div class="attention"><b>${esc(b.machines?.name||'Machine')}</b> — ${esc(b.reason)} · <span class="red">${downtime(b)} downtime</span></div>`).join('');
+ attention ||= '<div class="empty">No active breakdowns requiring attention.</div>';document.getElementById('attention').innerHTML=attention;
+}
+function downtime(b){return humanMins(Math.max(0,Math.floor((Date.now()-new Date(b.started_at).getTime())/60000)))}
+function humanMins(n){const d=Math.floor(n/1440),h=Math.floor(n%1440/60),m=n%60;return (d?d+'d ':'')+(h?h+'h ':'')+m+'m'}
+
+function renderMachines(){
+ const q=(machineSearch.value||'').toLowerCase().trim();const list=machines.filter(m=>m.active&&(!q||`${m.name} ${m.fleet_id} ${m.model||''} ${m.site||''}`.toLowerCase().includes(q)));
+ document.getElementById('machineRows').innerHTML=list.map(m=>`<tr><td><b>${esc(m.name)}</b><br><span class="muted">${esc(m.fleet_id)} · ${esc(m.model||'')}</span></td><td><span class="status ${m.status}">${m.status}</span></td><td>${Number(m.hours).toLocaleString()}</td><td>${esc(m.site||'—')}</td><td>${fmtDate(m.last_confirmed_at)}</td><td><button class="btn alt small" onclick="openMachineDetail('${m.id}')">Open</button>${canManage()?`<button class="btn small" style="margin-left:6px" onclick="setMachineOnline('${m.id}')">Set Online</button>`:''}</td></tr>`).join('')||`<tr><td colspan="6" class="empty">No matching machines.</td></tr>`;
+}
+function renderBreakdowns(){
+ const q=(breakdownSearch.value||'').toLowerCase().trim();const list=breakdowns.filter(b=>!q||`${b.machines?.name||''} ${b.machines?.fleet_id||''} ${b.reason||''}`.toLowerCase().includes(q));
+ document.getElementById('breakdownRows').innerHTML=list.map(b=>`<tr><td><b>${esc(b.machines?.name||'')}</b><br><span class="muted">${esc(b.machines?.fleet_id||'')}</span></td><td>${esc(b.reason)}<br><span class="muted">${esc(b.notes||'')}</span></td><td>${fmtDate(b.started_at)}</td><td class="red">${b.resolved_at?humanMins(Math.floor((new Date(b.resolved_at)-new Date(b.started_at))/60000)):downtime(b)}</td><td>${esc(b.assigned?.full_name||'Unassigned')}</td><td><span class="status ${b.resolved_at?'working':'breakdown'}">${b.resolved_at?'resolved':'open'}</span></td><td>${!b.resolved_at&&canManage()?`<button class="btn small" onclick="resolveBreakdown('${b.id}')">Repair complete</button><button class="btn alt small" style="margin-left:6px" onclick="sendWhatsAppAlert('${b.id}')">WhatsApp</button>`:''}</td></tr>`).join('')||`<tr><td colspan="7" class="empty">No breakdown records.</td></tr>`;
+}
+function renderServices(){
+ const q=(serviceSearch.value||'').toLowerCase().trim();const list=services.filter(s=>!q||`${s.machines?.name||''} ${s.machines?.fleet_id||''} ${s.work_completed||''} ${s.profiles?.full_name||''}`.toLowerCase().includes(q));
+ document.getElementById('serviceRows').innerHTML=list.map(s=>`<tr><td>${fmtDate(s.service_date)}</td><td><b>${esc(s.machines?.name||'')}</b><br><span class="muted">${esc(s.machines?.fleet_id||'')}</span></td><td>${esc(s.work_completed)}<br><span class="muted">${esc(s.notes||'')}</span></td><td>${Number(s.hour_reading).toLocaleString()}</td><td>${esc(s.profiles?.full_name||'')}</td><td>${s.photo_count||0}</td></tr>`).join('')||`<tr><td colspan="6" class="empty">No service records.</td></tr>`;
+}
+async function renderPeople(){
+ if(!canManage())return;const {data}=await sb.from('profiles').select('*').order('full_name');profiles=data||[];
+ document.getElementById('peopleRows').innerHTML=profiles.map(p=>`<tr><td><b>${esc(p.full_name)}</b></td><td>${esc(p.username)}</td><td>${roleLabel(p.role)}</td><td>${p.active?'Active':'Disabled'}</td><td><button class="btn alt small" onclick="openPerson('${p.id}')">Edit</button></td></tr>`).join('');
+}
+async function renderAudit(){
+ if(!canManage())return;const {data}=await sb.from('audit_log').select('*, profiles(full_name)').order('created_at',{ascending:false}).limit(200);
+ document.getElementById('auditRows').innerHTML=(data||[]).map(a=>`<tr><td>${fmtDate(a.created_at)}</td><td>${esc(a.profiles?.full_name||'')}</td><td>${esc(a.action)}</td><td>${esc(a.entity_type)}</td><td><pre style="white-space:pre-wrap;color:#aaa">${esc(JSON.stringify(a.details))}</pre></td></tr>`).join('');
+}
+async function loadSettings(){if(!canManage())return;document.getElementById('setInterval').value=settings.service_interval_hours||500;document.getElementById('setWarning').value=settings.service_warning_hours||50;document.getElementById('setConfirm').value=settings.fleet_confirmation_hours||12;document.getElementById('setPhotos').value=settings.photo_evidence_required||false;document.getElementById('setWhatsApp').value=settings.whatsapp_alert_number||'';document.getElementById('setWhatsAppEnabled').value=String(settings.whatsapp_alerts_enabled!==false)}
+function testWhatsApp(){
+ const number=String(document.getElementById('setWhatsApp').value||'').replace(/\D/g,'');
+ if(!number)return alert('Enter a WhatsApp number first.');
+ const url=`https://wa.me/${number}?text=${encodeURIComponent('PHATSEMA FLEET OPERATIONS — WhatsApp alert test. This confirms the authorised WhatsApp link is working.')}`;
+ const w=window.open(url,'_blank','noopener,noreferrer');
+ if(!w)alert('Allow pop-ups for Phatsema Fleet Operations and try again.');
+}
+async function saveSettings(){
+ const vals={service_interval_hours:Number(document.getElementById('setInterval').value),service_warning_hours:Number(document.getElementById('setWarning').value),fleet_confirmation_hours:Number(document.getElementById('setConfirm').value),photo_evidence_required:document.getElementById('setPhotos').value==='true',whatsapp_alert_number:document.getElementById('setWhatsApp').value.trim().replace(/[^0-9]/g,''),whatsapp_alerts_enabled:document.getElementById('setWhatsAppEnabled').value==='true'};
+ for(const [key,value] of Object.entries(vals)) await sb.from('app_settings').upsert({key,value,updated_by:me.id,updated_at:new Date().toISOString()});
+ await sb.from('audit_log').insert({actor_id:me.id,action:'update_settings',entity_type:'settings',details:vals});await refreshAll();alert('Settings saved.');
+}
+function modal(title,body){document.getElementById('modalTitle').textContent=title;document.getElementById('modalBody').innerHTML=body;document.getElementById('modal').classList.remove('hidden')}
+function closeModal(){document.getElementById('modal').classList.add('hidden')}
+function openMachine(id=''){
+ if(!canManage())return alert('Management permission required.');
+ const m=machines.find(x=>x.id===id)||{};
+ modal(id?'Edit Machine':'Add Machine',`<div class="fields">
+ <div class="twocol"><div class="field"><label>Machine name</label><input id="fmName" value="${esc(m.name||'')}"></div><div class="field"><label>Fleet ID</label><input id="fmFleet" value="${esc(m.fleet_id||'')}"></div></div>
+ <div class="twocol"><div class="field"><label>Model</label><input id="fmModel" value="${esc(m.model||'')}"></div><div class="field"><label>Site</label><input id="fmSite" value="${esc(m.site||'')}"></div></div>
+ <div class="twocol"><div class="field"><label>Current hours</label><input id="fmHours" type="number" value="${m.hours||0}"></div><div class="field"><label>Status</label><select id="fmStatus">${[['working','Online / Working'],['available','Available'],['breakdown','Breakdown'],['maintenance','Maintenance'],['offline','Offline']].map(([v,l])=>`<option value="${v}" ${m.status===v?'selected':''}>${l}</option>`).join('')}</select></div></div>
+ <div class="twocol"><div class="field"><label>Service interval</label><input id="fmInt" type="number" value="${m.service_interval_hours||settings.service_interval_hours||500}"></div><div class="field"><label>Warning before due</label><input id="fmWarn" type="number" value="${m.service_warning_hours||settings.service_warning_hours||50}"></div></div>
+ <button class="btn" onclick="saveMachine('${id}')">Save machine</button>${id?`<button class="btn danger" style="margin-left:8px" onclick="retireMachine('${id}')">Retire machine</button>`:''}</div>`);
+}
+async function saveMachine(id){
+ const selectedStatus=document.getElementById('fmStatus').value;const row={name:document.getElementById('fmName').value.trim(),fleet_id:document.getElementById('fmFleet').value.trim(),model:document.getElementById('fmModel').value.trim(),site:document.getElementById('fmSite').value.trim(),hours:Number(document.getElementById('fmHours').value||0),status:selectedStatus,service_interval_hours:Number(document.getElementById('fmInt').value),service_warning_hours:Number(document.getElementById('fmWarn').value),last_confirmed_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+ if(!row.name||!row.fleet_id)return alert('Machine name and Fleet ID are required.');
+ const res=id?await sb.from('machines').update(row).eq('id',id):await sb.from('machines').insert(row);
+ if(res.error)return alert(res.error.message);await sb.from('audit_log').insert({actor_id:me.id,action:id?'update_machine':'create_machine',entity_type:'machine',entity_id:id||null,details:{fleet_id:row.fleet_id}});closeModal();await refreshAll();
+}
+async function setMachineOnline(id){
+ if(!canManage())return alert('Management permission required.');
+ const now=new Date().toISOString();
+ const {error}=await sb.from('machines').update({status:'working',last_confirmed_at:now,updated_at:now}).eq('id',id);
+ if(error)return alert(error.message);
+ await sb.from('audit_log').insert({actor_id:me.id,action:'set_machine_online',entity_type:'machine',entity_id:id,details:{status:'working'}});
+ await refreshAll();
+}
+async function sendWhatsAppAlert(breakdownId){
+ const b=breakdowns.find(x=>x.id===breakdownId);
+ if(!b)return;
+ if(settings.whatsapp_alerts_enabled===false)return alert('WhatsApp alerts are disabled in Settings.');
+ const number=String(settings.whatsapp_alert_number||'').replace(/\D/g,'');
+ if(!number)return alert('Add the WhatsApp alert number in Settings first.');
+ const machine=b.machines?.name||'Machine';
+ const fleet=b.machines?.fleet_id||'';
+ const msg=`PHATSEMA FLEET ALERT\n\nMachine: ${machine}\nFleet ID: ${fleet}\nIssue: ${b.reason||'Breakdown'}\nReported: ${fmtDate(b.started_at)}\nDowntime: ${downtime(b)}\n\nPlease review the breakdown in Phatsema Fleet Operations.`;
+ const url=`https://wa.me/${number}?text=${encodeURIComponent(msg)}`;
+ const w=window.open(url,'_blank','noopener,noreferrer');
+ if(!w)alert('WhatsApp could not be opened. Allow pop-ups for this site and try again.');
+ await sb.from('audit_log').insert({actor_id:me.id,action:'whatsapp_alert_opened',entity_type:'breakdown',entity_id:breakdownId,details:{phone:number}});
+}
+async function retireMachine(id){if(!confirm('Retire this machine? Its history will remain protected and searchable.'))return;const {error}=await sb.from('machines').update({active:false,removed_at:new Date().toISOString(),removed_reason:'Retired by management',updated_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);await sb.from('audit_log').insert({actor_id:me.id,action:'retire_machine',entity_type:'machine',entity_id:id,details:{}});closeModal();await refreshAll()}
+function openMachineDetail(id){
+ const m=machines.find(x=>x.id===id);if(!m)return;
+ const hist=services.filter(s=>s.machine_id===id).slice(0,10);
+ modal(m.name,`<div class="kpirow"><span class="mini">Fleet ID <b>${esc(m.fleet_id)}</b></span><span class="mini">Status <b>${esc(m.status)}</b></span><span class="mini">Hours <b>${Number(m.hours).toLocaleString()}</b></span></div><div class="panel"><h2>Recent service</h2>${hist.map(s=>`<p><b>${fmtDate(s.service_date)}</b> — ${esc(s.work_completed)} · ${Number(s.hour_reading).toLocaleString()}h</p>`).join('')||'<p class="muted">No service history yet.</p>'}</div><div style="margin-top:12px"><button class="btn" onclick="closeModal();openService('${id}')">Log service</button>${canManage()?`<button class="btn alt" style="margin-left:8px" onclick="closeModal();openMachine('${id}')">Edit</button>`:''}</div>`);
+}
+function openBreakdown(){
+ const opts=machines.filter(m=>m.active).map(m=>`<option value="${m.id}">${esc(m.name)} — ${esc(m.fleet_id)} · ${esc(m.site||'')}</option>`).join('');
+ modal('Report Machine Issue',`<div class="fields"><div class="field"><label>Find machine</label><input id="bdFind" placeholder="Type machine name or Fleet ID" oninput="filterBD()"></div><div class="field"><label>Machine</label><select id="bdMachine">${opts}</select></div><div class="field"><label>Problem</label><input id="bdReason" placeholder="e.g. hydraulic leak"></div><div class="field"><label>Notes</label><textarea id="bdNotes" rows="3" placeholder="What did you find?"></textarea></div><div class="field"><label>Photo evidence</label><input id="bdPhoto" type="file" accept="image/*"></div><button class="btn" onclick="submitBreakdown()">Submit breakdown</button></div>`);
+}
+function filterBD(){const q=(document.getElementById('bdFind').value||'').toLowerCase();[...document.getElementById('bdMachine').options].forEach(o=>o.hidden=!o.textContent.toLowerCase().includes(q))}
+async function submitBreakdown(){
+ const file=document.getElementById('bdPhoto').files[0];const machineId=document.getElementById('bdMachine').value;const reason=document.getElementById('bdReason').value.trim();if(!reason)return alert('Describe the problem before submitting.');const {data,error}=await sb.from('breakdowns').insert({machine_id:machineId,reason,notes:document.getElementById('bdNotes').value.trim(),reported_by:me.id}).select().single();if(error)return alert(error.message);const machineUpdate=await sb.from('machines').update({status:'breakdown',last_confirmed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',machineId);if(machineUpdate.error)return alert(machineUpdate.error.message);
+ if(file) await uploadEvidence('breakdown',data.id,file);
+ await sb.from('audit_log').insert({actor_id:me.id,action:'report_breakdown',entity_type:'breakdown',entity_id:data.id,details:{reason:document.getElementById('bdReason').value.trim()}});closeModal();await refreshAll();
+}
+function openService(machineId=''){
+ const opts=machines.filter(m=>m.active).map(m=>`<option value="${m.id}" ${m.id===machineId?'selected':''}>${esc(m.name)} — ${esc(m.fleet_id)} · ${esc(m.site||'')}</option>`).join('');
+ const m=machines.find(x=>x.id===machineId);
+ modal('Log Service',`<div class="fields"><div class="field"><label>Find machine</label><input id="srvFind" placeholder="Type machine name or Fleet ID" oninput="filterSrv()"></div><div class="field"><label>Machine</label><select id="srvMachine">${opts}</select></div><div class="field"><label>Work completed</label><input id="srvWork" placeholder="e.g. 500-hour service"></div><div class="field"><label>Hour reading</label><input id="srvHours" type="number" value="${m?.hours||0}"></div><div class="field"><label>Notes</label><textarea id="srvNotes" rows="3"></textarea></div><div class="field"><label>Photos / evidence</label><input id="srvPhotos" type="file" accept="image/*" multiple></div><button class="btn" onclick="submitService()">Save service record</button></div>`);
+}
+function filterSrv(){const q=(document.getElementById('srvFind').value||'').toLowerCase();[...document.getElementById('srvMachine').options].forEach(o=>o.hidden=!o.textContent.toLowerCase().includes(q))}
+async function submitService(){
+ const m=machines.find(x=>x.id===document.getElementById('srvMachine').value);if(!m)return;const h=Number(document.getElementById('srvHours').value);if(h<m.hours)return alert(`Hour reading cannot be lower than current machine hours (${m.hours}).`);
+ const work=document.getElementById('srvWork').value.trim();if(!work)return alert('Enter the work completed.');const {data,error}=await sb.from('services').insert({machine_id:m.id,work_completed:work,hour_reading:h,notes:document.getElementById('srvNotes').value.trim(),recorded_by:me.id}).select().single();if(error)return alert(error.message);const machineUpdate=await sb.from('machines').update({hours:h,status:m.status==='breakdown'?'working':m.status,last_confirmed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',m.id);if(machineUpdate.error)return alert(machineUpdate.error.message);
+ for(const f of document.getElementById('srvPhotos').files)await uploadEvidence('service',data.id,f);
+ await sb.from('audit_log').insert({actor_id:me.id,action:'log_service',entity_type:'service',entity_id:data.id,details:{machine:m.fleet_id,work:document.getElementById('srvWork').value.trim(),hours:h}});closeModal();await refreshAll();
+}
+async function uploadEvidence(type,id,file){
+ const ext=file.name.split('.').pop().toLowerCase(),path=`${type}/${id}/${crypto.randomUUID()}.${ext}`;
+ const {error}=await sb.storage.from('fleet-evidence').upload(path,file,{upsert:false});if(error)return console.warn(error);
+ await sb.from(type==='service'?'service_photos':'breakdown_photos').insert(type==='service'?{service_id:id,storage_path:path}:{breakdown_id:id,storage_path:path});
+}
+async function resolveBreakdown(id){
+ if(!canManage())return;const b=breakdowns.find(x=>x.id===id);if(!b)return;const resolvedAt=new Date().toISOString();const {error}=await sb.from('breakdowns').update({resolved_at:resolvedAt}).eq('id',id);if(error)return alert(error.message);const machineUpdate=await sb.from('machines').update({status:'working',last_confirmed_at:resolvedAt,updated_at:resolvedAt}).eq('id',b.machine_id);if(machineUpdate.error)return alert(machineUpdate.error.message);await sb.from('audit_log').insert({actor_id:me.id,action:'resolve_breakdown',entity_type:'breakdown',entity_id:id,details:{machine_id:b.machine_id,status:'working'}});await refreshAll();
+}
+boot();
+</script>
+</body>
+</html>

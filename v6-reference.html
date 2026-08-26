@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="https://phatsema.com/wp-content/uploads/2025/04/cropped-PHATSEMA-PROJECTS-LOGO-270x270.png">
+<title>Phatsema Projects & Supplies — Fleet Service Indicator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-primary:#1B1D1F;
+    --bg-panel:#232629;
+    --bg-panel-raised:#2A2E31;
+    --accent-yellow:#F5B700;
+    --accent-yellow-dim:#8A6600;
+    --brand-red:#C8202F;
+    --steel:#4A5560;
+    --steel-dim:#333A40;
+    --text-primary:#ECE8E1;
+    --text-muted:#8E969B;
+    --status-ok:#4C9A5B;
+    --status-warning:#F5B700;
+    --status-overdue:#D6473F;
+    --hairline:#34383B;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at top left, #202325 0%, var(--bg-primary) 60%);
+    color:var(--text-primary);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1180px;margin:0 auto;padding:28px 24px 64px;}
+
+  /* header */
+  .plate{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 22px;background:var(--bg-panel);
+    border:1px solid var(--hairline);
+    border-left:5px solid var(--accent-yellow);
+    border-radius:var(--radius);
+    margin-bottom:22px;
+    flex-wrap:wrap;gap:16px;
+  }
+  .plate-brand{display:flex;align-items:center;gap:14px;}
+  .plate-logo{height:44px;width:auto;max-width:150px;flex-shrink:0;}
+  .plate-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-size:22px;
+    font-weight:600;
+    color:var(--text-primary);
+  }
+  .plate-tagline{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accent-yellow);
+    text-transform:uppercase;letter-spacing:0.05em;margin-top:1px;
+  }
+  .plate-sub{
+    font-size:12px;color:var(--text-muted);letter-spacing:0.03em;margin-top:2px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .summary-chips{display:flex;gap:10px;flex-wrap:wrap;}
+  .chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;padding:7px 12px;border-radius:2px;
+    border:1px solid var(--hairline);
+    display:flex;align-items:center;gap:7px;
+    background:var(--bg-panel-raised);
+    cursor:pointer;
+    color:var(--text-primary);
+    transition:border-color .12s ease, background .12s ease;
+  }
+  .chip:hover{border-color:var(--steel);}
+  .chip.active{border-color:var(--accent-yellow);background:rgba(245,183,0,0.08);}
+  .chip:focus-visible{outline:2px solid var(--accent-yellow);outline-offset:1px;}
+  .chip .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .btn{
+    font-family:'IBM Plex Sans',sans-serif;
+    font-weight:600;font-size:13px;
+    background:var(--accent-yellow);color:#1B1D1F;
+    border:none;padding:10px 16px;border-radius:2px;cursor:pointer;
+    letter-spacing:0.01em;
+    transition:filter .15s ease;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn-ghost{
+    background:transparent;color:var(--text-primary);
+    border:1px solid var(--steel);
+  }
+  .btn-ghost:hover{background:var(--bg-panel-raised);filter:none;}
+
+  /* layout grid */
+  .layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
+  @media (max-width:880px){.layout{grid-template-columns:1fr;}}
+
+  .fleet-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .search-wrap{position:relative;flex:1;min-width:200px;}
+  .search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;}
+  .search-input{
+    width:100%;background:var(--bg-panel-raised);border:1px solid var(--hairline);
+    color:var(--text-primary);padding:9px 12px 9px 32px;border-radius:2px;
+    font-family:'IBM Plex Sans',sans-serif;font-size:13px;
+  }
+  .search-input::placeholder{color:var(--text-muted);}
+  .search-input:focus{outline:none;border-color:var(--accent-yellow);}
+  .result-count{font-size:11px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+
+  .fleet-grid{
+    display:grid;grid-template-columns:repeat(auto-fill, minmax(270px,1fr));
+    gap:16px;
+  }
+  .empty-state{
+    grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text-muted);
+    border:1px dashed var(--hairline);border-radius:var(--radius);font-size:13px;
+  }
+  .empty-state button{margin-top:10px;}
+
+  /* machine card */
+  .mcard{
+    background:var(--bg-panel);
+    border:1px solid var(--hairline);
+    border-left:4px solid var(--steel);
+    border-radius:var(--radius);
+    padding:16px 16px 14px;
+    cursor:pointer;
+    transition:transform .12s ease, border-color .12s ease;
+    position:relative;
+  }
+  .mcard:hover{transform:translateY(-2px);border-color:var(--steel);}
+  .mcard:focus-visible{outline:2px solid var(--accent-yellow);outline-offset:2px;}
+  .mcard[data-status="ok"]{border-left-color:var(--status-ok);}
+  .mcard[data-status="warning"]{border-left-color:var(--status-warning);}
+  .mcard[data-status="overdue"]{border-left-color:var(--status-overdue);}
+  .mcard-log-btn{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    width:100%;margin-top:12px;padding:8px;
+    background:var(--bg-panel-raised);border:1px solid var(--hairline);color:var(--text-primary);
+    font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:600;
+    border-radius:2px;cursor:pointer;letter-spacing:0.02em;
+    transition:border-color .12s ease, background .12s ease;
+  }
+  .mcard-log-btn:hover{border-color:var(--accent-yellow);background:rgba(245,183,0,0.08);}
+
+  .mcard-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .mcard-name{
+    font-family:'Oswald',sans-serif;font-weight:600;
+    text-transform:uppercase;letter-spacing:0.03em;font-size:15px;
+  }
+  .mcard-model{font-size:11px;color:var(--text-muted);margin-top:1px;}
+  .status-badge{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;
+    padding:3px 7px;border-radius:2px;text-transform:uppercase;letter-spacing:0.04em;
+    white-space:nowrap;
+  }
+  .status-badge[data-status="ok"]{background:rgba(76,154,91,0.15);color:var(--status-ok);}
+  .status-badge[data-status="warning"]{background:rgba(245,183,0,0.15);color:var(--status-warning);}
+  .status-badge[data-status="overdue"]{background:rgba(214,71,63,0.15);color:var(--status-overdue);}
+
+  .gauge-row{display:flex;align-items:center;gap:14px;margin-top:10px;}
+  .gauge-num{font-family:'IBM Plex Mono',monospace;}
+  .gauge-num .hrs{font-size:26px;font-weight:600;line-height:1;}
+  .gauge-num .lbl{font-size:10px;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;margin-top:3px;}
+
+  .mcard-meta{
+    margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline);
+    font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;
+  }
+
+  /* alerts sidebar */
+  .panel-title{
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.05em;
+    font-size:13px;color:var(--text-muted);margin:0 0 12px 2px;
+  }
+  .alerts{
+    background:var(--bg-panel);border:1px solid var(--hairline);border-radius:var(--radius);
+    padding:6px;
+  }
+  .alert-item{
+    display:flex;gap:10px;padding:10px 8px;border-bottom:1px solid var(--hairline);
+  }
+  .alert-item:last-child{border-bottom:none;}
+  .alert-chan{
+    font-family:'IBM Plex Mono',monospace;font-size:9px;color:#1B1D1F;
+    background:var(--steel);width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:600;
+    margin-top:1px;
+  }
+  .alert-item[data-level="overdue"] .alert-chan{background:var(--status-overdue);color:#fff;}
+  .alert-item[data-level="warning"] .alert-chan{background:var(--accent-yellow);}
+  .alert-text{font-size:12.5px;line-height:1.4;}
+  .alert-time{font-size:10px;color:var(--text-muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;}
+
+  /* modal */
+  .modal-backdrop{
+    display:none;position:fixed;inset:0;background:rgba(10,11,12,0.65);
+    align-items:center;justify-content:center;z-index:50;padding:20px;
+  }
+  .modal-backdrop.open{display:flex;}
+  .modal{
+    background:var(--bg-panel);border:1px solid var(--hairline);border-radius:var(--radius);
+    width:100%;max-width:420px;padding:22px;border-top:4px solid var(--accent-yellow);
+  }
+  .modal h3{
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.04em;
+    margin:0 0 4px;font-size:17px;
+  }
+  .modal .modal-sub{font-size:12px;color:var(--text-muted);margin-bottom:16px;font-family:'IBM Plex Mono',monospace;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.04em;}
+  .field label .req{color:var(--accent-yellow);}
+  .field input[type=text], .field input[type=date], .field input[type=number], .field select{
+    width:100%;background:var(--bg-panel-raised);border:1px solid var(--hairline);
+    color:var(--text-primary);padding:8px 10px;border-radius:2px;font-family:'IBM Plex Mono',monospace;font-size:13px;
+  }
+  .field select{font-family:'IBM Plex Sans',sans-serif;}
+  .field input:focus, .field select:focus{outline:none;border-color:var(--accent-yellow);}
+  .field .hint{font-size:10.5px;color:var(--text-muted);margin-top:4px;}
+  .field.invalid input, .field.invalid select{border-color:var(--status-overdue);}
+  .field .error-msg{display:none;font-size:11px;color:var(--status-overdue);margin-top:4px;}
+  .field.invalid .error-msg{display:block;}
+  .field.invalid .hint{display:none;}
+  .checks{display:flex;gap:16px;margin-bottom:14px;}
+  .check-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-primary);}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--status-ok);color:#0e1a10;font-weight:600;font-size:13px;
+    padding:11px 18px;border-radius:2px;opacity:0;transition:all .25s ease;pointer-events:none;
+    font-family:'IBM Plex Sans',sans-serif;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.error{background:var(--status-overdue);color:#fff;}
+
+  /* auth screens */
+  .auth-screen{
+    position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(ellipse at top left, #202325 0%, var(--bg-primary) 60%);
+    padding:20px;
+  }
+  .auth-card{
+    width:100%;max-width:360px;background:var(--bg-panel);border:1px solid var(--hairline);
+    border-top:4px solid var(--accent-yellow);border-radius:var(--radius);padding:26px 24px;
+  }
+  .auth-logo{
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--hairline);
+  }
+  .auth-logo img{max-width:190px;max-height:64px;width:auto;height:auto;}
+  .auth-title{
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.05em;
+    font-size:19px;font-weight:600;margin-bottom:4px;
+  }
+  .auth-tagline{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accent-yellow);
+    text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;
+  }
+  .auth-fine{font-size:12px;color:var(--text-muted);margin-bottom:18px;font-family:'IBM Plex Mono',monospace;}
+  .auth-error{
+    display:none;font-size:11.5px;color:var(--status-overdue);margin:-4px 0 12px;
+    background:rgba(214,71,63,0.1);border:1px solid rgba(214,71,63,0.35);padding:7px 9px;border-radius:2px;
+  }
+  .auth-hint{font-size:10.5px;color:var(--text-muted);margin-top:14px;line-height:1.5;font-family:'IBM Plex Mono',monospace;}
+
+  /* session bar */
+  .session-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    padding:10px 16px;background:var(--bg-panel);border:1px solid var(--hairline);
+    border-radius:var(--radius);margin-bottom:16px;
+  }
+  .session-user{display:flex;align-items:center;gap:10px;cursor:pointer;position:relative;}
+  .avatar{
+    width:28px;height:28px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#1B1D1F;
+    background:var(--steel);border:2px solid transparent;
+  }
+  .session-user .avatar{background:var(--accent-yellow);width:32px;height:32px;font-size:12px;}
+  .session-user-name{font-size:13px;font-weight:600;line-height:1.3;}
+  .session-user-role{font-size:10.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;}
+  .session-caret{font-size:9px;color:var(--text-muted);margin-left:2px;}
+  .login-log{
+    display:none;position:absolute;top:calc(100% + 8px);left:0;z-index:60;
+    width:230px;background:var(--bg-panel-raised);border:1px solid var(--hairline);
+    border-radius:var(--radius);padding:10px 12px;box-shadow:0 8px 20px rgba(0,0,0,0.4);
+  }
+  .login-log.open{display:block;}
+  .login-log-title{
+    font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);
+    margin-bottom:8px;font-family:'IBM Plex Mono',monospace;
+  }
+  .login-log-item{font-size:11.5px;padding:4px 0;border-bottom:1px solid var(--hairline);display:flex;justify-content:space-between;gap:8px;}
+  .login-log-item:last-child{border-bottom:none;}
+  .login-log-item .t{color:var(--text-muted);font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;}
+
+  .presence-strip{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .presence-avatar-wrap{position:relative;}
+  .presence-avatar-wrap .avatar[data-status="viewing"]{border-color:var(--status-ok);}
+  .presence-avatar-wrap .avatar[data-status="editing"]{border-color:var(--accent-yellow);}
+  .presence-avatar-wrap .avatar[data-status="offline"]{opacity:0.3;}
+  .presence-avatar-wrap .status-dot{
+    position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;
+    border:2px solid var(--bg-panel);
+  }
+  .presence-avatar-wrap .status-dot[data-status="viewing"]{background:var(--status-ok);}
+  .presence-avatar-wrap .status-dot[data-status="editing"]{background:var(--accent-yellow);}
+  .presence-avatar-wrap .status-dot[data-status="offline"]{background:var(--steel-dim);}
+  .presence-label{font-size:10px;color:var(--text-muted);margin-right:2px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.04em;}
+
+  .mcard-editing-flag{
+    position:absolute;top:10px;right:10px;
+    display:flex;align-items:center;gap:4px;
+    background:rgba(245,183,0,0.15);border:1px solid var(--accent-yellow-dim);color:var(--accent-yellow);
+    font-size:9.5px;font-family:'IBM Plex Mono',monospace;padding:3px 6px;border-radius:2px;
+    text-transform:uppercase;letter-spacing:0.03em;
+  }
+
+  /* capabilities showcase */
+  .capabilities{margin-bottom:20px;background:var(--bg-panel);border:1px solid var(--hairline);border-radius:var(--radius);}
+  .cap-toggle{
+    width:100%;display:flex;align-items:center;justify-content:space-between;
+    background:transparent;border:none;cursor:pointer;
+    padding:14px 16px;
+  }
+  .cap-toggle:hover .panel-title{color:var(--text-primary);}
+  .cap-toggle-left{display:flex;align-items:center;gap:9px;}
+  .cap-toggle .panel-title{margin:0;transition:color .12s ease;}
+  .cap-count{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);
+    background:var(--bg-panel-raised);border:1px solid var(--hairline);
+    padding:2px 7px;border-radius:10px;
+  }
+  .cap-chevron{
+    width:16px;height:16px;color:var(--text-muted);flex-shrink:0;
+    transition:transform .2s ease;
+  }
+  .capabilities.open .cap-chevron{transform:rotate(180deg);}
+  .cap-collapse{
+    display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease;
+  }
+  .capabilities.open .cap-collapse{grid-template-rows:1fr;}
+  .cap-collapse-inner{overflow:hidden;}
+  .cap-grid{
+    display:grid;grid-template-columns:repeat(auto-fit, minmax(190px,1fr));
+    gap:14px;
+    padding:2px 16px 16px;
+  }
+  .cap-card{
+    background:var(--bg-panel-raised);border:1px solid var(--hairline);
+    border-top:3px solid var(--steel);border-radius:var(--radius);
+    padding:16px 15px 15px;
+    transition:border-color .12s ease, transform .12s ease;
+  }
+  .cap-card:hover{border-top-color:var(--accent-yellow);transform:translateY(-2px);}
+  .cap-icon{
+    width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+    background:var(--bg-panel);border:1px solid var(--hairline);border-radius:2px;
+    color:var(--accent-yellow);margin-bottom:11px;
+  }
+  .cap-icon svg{width:18px;height:18px;}
+  .cap-name{
+    font-family:'Oswald',sans-serif;font-weight:600;text-transform:uppercase;
+    letter-spacing:0.03em;font-size:12.5px;margin-bottom:6px;
+  }
+  .cap-desc{font-size:11.5px;color:var(--text-muted);line-height:1.5;}
+
+  /* history catalog modal */
+  .modal-wide{max-width:640px;}
+  .history-tabs{display:flex;gap:4px;border-bottom:1px solid var(--hairline);margin-bottom:14px;}
+  .history-tab{
+    font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;font-weight:600;
+    background:transparent;border:none;color:var(--text-muted);
+    padding:9px 4px 10px;margin-right:14px;cursor:pointer;
+    border-bottom:2px solid transparent;
+  }
+  .history-tab.active{color:var(--text-primary);border-bottom-color:var(--accent-yellow);}
+  .history-tab:hover{color:var(--text-primary);}
+  .history-panel{display:none;max-height:52vh;overflow-y:auto;}
+  .history-panel.active{display:block;}
+  .history-table{width:100%;border-collapse:collapse;}
+  .history-table th{
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;
+    letter-spacing:0.04em;color:var(--text-muted);padding:0 8px 8px;
+    position:sticky;top:0;background:var(--bg-panel);
+  }
+  .history-table td{
+    padding:9px 8px;font-size:12px;border-top:1px solid var(--hairline);vertical-align:top;
+  }
+  .history-table tr:hover td{background:var(--bg-panel-raised);}
+  .history-table .mono{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);white-space:nowrap;}
+  .history-empty{padding:24px 8px;text-align:center;color:var(--text-muted);font-size:12.5px;}
+
+  /* machine detail modal */
+  .detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
+  .detail-model{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+  .live-tag{
+    display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;
+    font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:var(--status-ok);
+    background:rgba(60,180,110,0.12);border:1px solid rgba(60,180,110,0.35);
+    padding:3px 7px;border-radius:2px;
+  }
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--status-ok);animation:live-pulse 1.6s infinite;}
+  @keyframes live-pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+  .fuel-block{
+    background:var(--bg-panel-raised);border:1px solid var(--hairline);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:14px;
+  }
+  .fuel-block-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
+  .fuel-label{font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;}
+  .fuel-pct{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;}
+  .fuel-bar-track{height:10px;background:var(--steel-dim);border-radius:5px;overflow:hidden;}
+  .fuel-bar-fill{height:100%;border-radius:5px;transition:width .5s ease, background-color .5s ease;}
+  .fuel-sub{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;}
+
+  .detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .detail-stat{background:var(--bg-panel-raised);border:1px solid var(--hairline);border-radius:var(--radius);padding:11px 13px;}
+  .detail-stat-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:4px;}
+  .detail-stat-val{font-size:13.5px;font-weight:600;}
+
+  /* ERP sync block */
+  .erp-block{
+    background:var(--bg-panel-raised);border:1px solid var(--hairline);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:14px;
+  }
+  .erp-block-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .erp-label{font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;}
+  .erp-sync-badge{
+    display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;
+    font-size:10px;text-transform:uppercase;letter-spacing:0.04em;
+    padding:3px 7px;border-radius:2px;border:1px solid transparent;
+  }
+  .erp-sync-badge[data-sync="synced"]{color:var(--status-ok);background:rgba(60,180,110,0.12);border-color:rgba(60,180,110,0.35);}
+  .erp-sync-badge[data-sync="pending"]{color:var(--status-warning);background:rgba(230,160,30,0.12);border-color:rgba(230,160,30,0.35);}
+  .erp-sync-badge[data-sync="error"]{color:var(--status-overdue);background:rgba(210,70,60,0.12);border-color:rgba(210,70,60,0.35);}
+  .erp-rows{display:flex;flex-direction:column;gap:7px;}
+  .erp-row{display:flex;justify-content:space-between;font-size:12px;}
+  .erp-row .k{color:var(--text-muted);}
+  .erp-row .v{font-family:'IBM Plex Mono',monospace;}
+  .erp-sync-btn{
+    margin-top:11px;width:100%;background:transparent;border:1px solid var(--hairline);color:var(--text-primary);
+    font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:600;padding:7px;border-radius:2px;cursor:pointer;
+    transition:border-color .12s ease;
+  }
+  .erp-sync-btn:hover{border-color:var(--accent-yellow);}
+  .erp-sync-btn:disabled{opacity:.55;cursor:default;}
+
+  /* alert message system */
+  .alert-item{align-items:flex-start;}
+  .alert-body{flex:1;}
+  .alert-actions{display:flex;align-items:center;margin-top:6px;gap:8px;}
+  .alert-send-btn{
+    background:transparent;border:1px solid var(--hairline);color:var(--text-primary);
+    font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.03em;
+    padding:4px 8px;border-radius:2px;cursor:pointer;transition:border-color .12s ease;
+  }
+  .alert-send-btn:hover{border-color:var(--accent-yellow);}
+  .alert-sent-tag{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--status-ok);
+    display:inline-flex;align-items:center;gap:4px;
+  }
+
+  .channel-picker{display:flex;gap:8px;margin-bottom:4px;}
+  .channel-opt{
+    flex:1;text-align:center;border:1px solid var(--hairline);border-radius:var(--radius);
+    padding:9px 4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;
+    text-transform:uppercase;letter-spacing:0.03em;color:var(--text-muted);
+    background:var(--bg-panel-raised);transition:border-color .12s ease,color .12s ease;
+  }
+  .channel-opt.active{border-color:var(--accent-yellow);color:var(--text-primary);background:rgba(245,183,0,0.08);}
+  .send-preview{
+    background:var(--bg-panel-raised);border:1px solid var(--hairline);border-radius:var(--radius);
+    padding:10px 12px;font-size:11.5px;color:var(--text-muted);margin-top:4px;
+  }
+
+/* ---- integrated operations center ---- */
+.ops-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;padding:6px;background:var(--bg-panel);border:1px solid var(--hairline);border-radius:var(--radius);}
+.ops-tab{border:1px solid transparent;background:transparent;color:var(--text-muted);font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:2px;cursor:pointer;}
+.ops-tab:hover{color:var(--text-primary);background:var(--bg-panel-raised);}
+.ops-tab.active{color:var(--text-primary);background:rgba(245,183,0,.09);border-color:var(--accent-yellow-dim);}
+.ops-panel{display:none;margin-bottom:18px;}
+.ops-panel.active{display:block;}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+.kpi{background:var(--bg-panel);border:1px solid var(--hairline);border-radius:var(--radius);padding:13px 14px;}
+.kpi-label{font:10px 'IBM Plex Mono',monospace;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
+.kpi-value{font:600 22px 'IBM Plex Mono',monospace;}
+.kpi-sub{font-size:10.5px;color:var(--text-muted);margin-top:4px;}
+.ops-grid{display:grid;grid-template-columns:1.3fr .7fr;gap:14px;margin-top:12px;}
+.ops-card{background:var(--bg-panel);border:1px solid var(--hairline);border-radius:var(--radius);padding:14px;}
+.ops-card-title{font:600 12px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;color:var(--text-muted);}
+.map-stage{height:270px;position:relative;overflow:hidden;border:1px solid var(--hairline);border-radius:var(--radius);background:radial-gradient(circle at 30% 30%,#30363a 0,#202426 55%,#17191b 100%);}
+.map-gridline{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:32px 32px;}
+.map-road{position:absolute;height:3px;background:#4a5156;transform-origin:left center;opacity:.7;}
+.map-road.r1{width:82%;left:8%;top:38%;transform:rotate(8deg)}.map-road.r2{width:70%;left:15%;top:67%;transform:rotate(-18deg)}.map-road.r3{width:55%;left:25%;top:22%;transform:rotate(42deg)}
+.map-pin{position:absolute;width:12px;height:12px;border-radius:50%;border:2px solid #1b1d1f;background:var(--status-ok);box-shadow:0 0 0 4px rgba(76,154,91,.18);cursor:pointer;}
+.map-pin.warning{background:var(--status-warning);box-shadow:0 0 0 4px rgba(245,183,0,.16)}.map-pin.overdue{background:var(--status-overdue);box-shadow:0 0 0 4px rgba(214,71,63,.16)}
+.map-pin-label{position:absolute;transform:translate(9px,-4px);white-space:nowrap;font:9px 'IBM Plex Mono',monospace;color:var(--text-primary);background:rgba(27,29,31,.85);padding:3px 5px;border:1px solid var(--hairline);border-radius:2px;pointer-events:none;}
+.fuel-list{display:flex;flex-direction:column;gap:9px}.fuel-row{display:grid;grid-template-columns:88px 1fr 42px;align-items:center;gap:8px;font-size:11px}.fuel-name{font-family:'IBM Plex Mono',monospace}.fuel-track{height:7px;background:var(--steel-dim);border-radius:4px;overflow:hidden}.fuel-fill{height:100%;border-radius:4px;background:var(--status-ok)}.fuel-fill.low{background:var(--status-overdue)}.fuel-fill.mid{background:var(--status-warning)}.fuel-pct{font:10px 'IBM Plex Mono',monospace;text-align:right}
+.queue{display:flex;flex-direction:column;gap:7px}.queue-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--bg-panel-raised);border:1px solid var(--hairline);border-radius:2px;font-size:11px}.queue-left{display:flex;gap:8px;align-items:center}.queue-dot{width:7px;height:7px;border-radius:50%;background:var(--status-ok)}.queue-dot.warning{background:var(--status-warning)}.queue-dot.overdue{background:var(--status-overdue)}.queue-hours{font:10px 'IBM Plex Mono',monospace;color:var(--text-muted)}
+.report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.report-card{background:var(--bg-panel);border:1px solid var(--hairline);padding:14px;border-radius:var(--radius)}.report-big{font:600 25px 'IBM Plex Mono',monospace}.report-small{font-size:10.5px;color:var(--text-muted);margin-top:4px}.bar-chart{display:flex;align-items:flex-end;gap:7px;height:90px;margin-top:12px}.bar{flex:1;background:var(--steel);min-height:5px;border-radius:2px 2px 0 0;position:relative}.bar span{position:absolute;bottom:calc(100% + 3px);left:50%;transform:translateX(-50%);font:8px 'IBM Plex Mono',monospace;color:var(--text-muted)}
+@media(max-width:760px){.kpi-grid,.report-grid{grid-template-columns:repeat(2,1fr)}.ops-grid{grid-template-columns:1fr}}@media(max-width:480px){.kpi-grid,.report-grid{grid-template-columns:1fr}.ops-tab{flex:1}}
+
+
+<style>
+.availability-chip{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:7px 10px;border:1px solid var(--hairline);
+  background:var(--bg-panel);border-radius:2px;
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  color:var(--text-primary);white-space:nowrap;
+}
+.availability-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--status-ok);box-shadow:0 0 0 3px rgba(60,180,110,.12);
+}
+.availability-chip b{font-weight:700;}
+.availability-panel{
+  margin-top:14px;padding:14px 16px;
+  background:var(--bg-panel);border:1px solid var(--hairline);
+}
+.availability-panel-head{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:12px;
+}
+.availability-title{
+  font-family:'Oswald',sans-serif;font-size:12px;
+  font-weight:600;text-transform:uppercase;letter-spacing:.03em;
+}
+.availability-total{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);
+}
+.availability-bar{height:9px;background:var(--steel-dim);border-radius:5px;overflow:hidden;display:flex;}
+.avail-segment{height:100%;}
+.avail-available{background:var(--status-ok);}
+.avail-working{background:var(--status-warning);}
+.avail-maint{background:var(--status-overdue);}
+.avail-offline{background:#657078;}
+.availability-legend{
+  display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;
+  font-size:10.5px;color:var(--text-muted);
+}
+.availability-legend span{display:inline-flex;align-items:center;gap:5px;}
+.availability-legend i{width:7px;height:7px;border-radius:50%;display:inline-block;}
+
+/* WOW upgrade: clearer machine actions + account creation + breakdown workflow */
+.mcard-actions{display:flex;gap:8px;margin-top:10px}.mcard-actions .mcard-log-btn{flex:1;margin-top:0}.mcard-break-btn{flex:1;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.10);color:#ff8a8a;border-radius:10px;padding:9px 10px;font:600 12px inherit;cursor:pointer;transition:.18s}.mcard-break-btn:hover{background:rgba(239,68,68,.18);transform:translateY(-1px)}.breakdown-banner{margin:12px 0;padding:12px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.08);border-radius:12px}.breakdown-banner strong{color:#ff8a8a}.breakdown-history{margin-top:12px}.auth-switch{margin-top:12px;text-align:center;font-size:12px;color:var(--text-secondary)}.auth-switch button{background:none;border:0;color:#fff;font-weight:700;cursor:pointer;text-decoration:underline}.strength{font-size:11px;margin-top:5px;color:var(--text-secondary)}.role-note{font-size:11px;color:var(--text-secondary);margin-top:-3px;margin-bottom:8px}.success-msg{display:none;color:#72e6a3;font-size:12px;margin:8px 0}.danger-btn{background:#b4232e!important;color:#fff!important}.modal-wide .field textarea{min-height:90px}.required-star{color:#ff7b7b}.account-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:620px){.account-grid{grid-template-columns:1fr}.mcard-actions{flex-direction:column}}
+
+</style>
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="loginScreen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="https://phatsema.com/wp-content/uploads/2025/04/PHATSEMA-PROJECTS-LOGO.png" alt="Phatsema Projects & Supplies">
+    </div>
+    <div class="auth-tagline">Fleet Service Indicator</div>
+    <div class="auth-title">Phatsema Projects &amp; Supplies</div>
+    <div class="auth-fine">Sign in to continue</div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="e.g. s.nkosi" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="auth-error" id="loginError"></div>
+    <button class="btn" style="width:100%" onclick="attemptLogin()">Sign In</button>
+    <div class="auth-switch">New team member? <button type="button" onclick="showRegister()">Create your account</button></div>
+    <div class="auth-hint">Demo accounts: s.nkosi / r.botha / m.dlamini / admin — password: demo123</div>
+  </div>
+</div>
+
+<div class="auth-screen" id="registerScreen" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-logo"><img src="https://phatsema.com/wp-content/uploads/2025/04/PHATSEMA-PROJECTS-LOGO.png" alt="Phatsema Projects & Supplies"></div>
+    <div class="auth-tagline">Team Access</div>
+    <div class="auth-title">Create your account</div>
+    <div class="auth-fine">Choose your own username and password. This prototype saves the account on this device.</div>
+    <div class="account-grid">
+      <div class="field"><label>Full name <span class="required-star">*</span></label><input id="regName" placeholder="e.g. Kabelo Mokoena" autocomplete="name"></div>
+      <div class="field"><label>Username <span class="required-star">*</span></label><input id="regUsername" placeholder="e.g. kabelo.m" autocomplete="username"></div>
+    </div>
+    <div class="field"><label>Role</label><select id="regRole"><option>Assistant / Mechanic</option><option>Foreman</option><option>Operations Manager</option><option>Head of Operations</option></select></div>
+    <div class="field"><label>Password <span class="required-star">*</span></label><input type="password" id="regPassword" placeholder="Minimum 8 characters" autocomplete="new-password" oninput="updatePasswordStrength()"><div class="strength" id="passwordStrength">Use 8+ characters with a number and symbol.</div></div>
+    <div class="field"><label>Confirm password <span class="required-star">*</span></label><input type="password" id="regConfirm" placeholder="Re-enter password" autocomplete="new-password"></div>
+    <div class="auth-error" id="registerError"></div><div class="success-msg" id="registerSuccess"></div>
+    <button class="btn" style="width:100%" onclick="createAccount()">Create Account</button>
+    <button class="btn-ghost btn" style="width:100%;margin-top:8px" onclick="backToLoginFromRegister()">← Back to sign in</button>
+  </div>
+</div>
+
+<div class="auth-screen" id="twoFAScreen" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-title">Verify It's You</div>
+    <div class="auth-fine" id="twoFASub">A 6-digit code was sent to your device.</div>
+    <div class="field">
+      <label>Verification Code</label>
+      <input type="text" id="twoFACode" inputmode="numeric" maxlength="6" placeholder="000000" style="letter-spacing:0.3em;text-align:center;font-size:18px;">
+    </div>
+    <div class="auth-error" id="twoFAError"></div>
+    <button class="btn" style="width:100%" onclick="attemptVerify()">Verify &amp; Continue</button>
+    <button class="btn-ghost btn" style="width:100%;margin-top:8px;" onclick="backToLogin()">← Back to sign in</button>
+    <div class="auth-hint" id="demoCodeHint"></div>
+  </div>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
+
+  <div class="plate">
+    <div class="plate-brand">
+      <img class="plate-logo" src="https://phatsema.com/wp-content/uploads/2025/04/PHATSEMA-PROJECTS-LOGO.png" alt="Phatsema Projects & Supplies">
+      <div>
+        <div class="plate-title">Phatsema Projects &amp; Supplies</div>
+        <div class="plate-tagline">Fleet Service Indicator</div>
+        <div class="plate-sub" id="dateline">— PLANT HIRE FLEET / LIVE STATUS —</div>
+      </div>
+    </div>
+    <div class="summary-chips" id="summaryChips"></div>
+      <div class="availability-chip" id="availabilityChip" title="Machines currently available for work">
+        <span class="availability-dot"></span>
+        <span><b id="availabilityCount">0</b> Available</span>
+      </div>
+    <button class="btn btn-ghost" onclick="openHistoryModal()">History</button>
+    <button class="btn" onclick="openModal()">+ Log Service</button>
+  </div>
+
+
+  <div class="ops-nav" role="tablist" aria-label="Fleet operations views">
+    <button class="ops-tab active" onclick="switchOpsTab('overview',this)">Overview</button>
+    <button class="ops-tab" onclick="switchOpsTab('live',this)">Live Fleet</button>
+    <button class="ops-tab" onclick="switchOpsTab('fuel',this)">Fuel & Utilization</button>
+    <button class="ops-tab" onclick="switchOpsTab('maintenance',this)">Maintenance</button>
+    <button class="ops-tab" onclick="switchOpsTab('reports',this)">Reports</button>
+  </div>
+  <div class="ops-panel active" id="ops-overview">
+    <div class="kpi-grid" id="opsKpis"></div>
+  </div>
+  <div class="ops-panel" id="ops-live">
+    <div class="ops-grid">
+      <div class="ops-card"><div class="ops-card-title">Live Fleet Location</div><div class="map-stage" id="fleetMap"><div class="map-gridline"></div><div class="map-road r1"></div><div class="map-road r2"></div><div class="map-road r3"></div></div></div>
+      <div class="ops-card"><div class="ops-card-title">Live Telemetry</div><div id="liveTelemetry"></div></div>
+    </div>
+  </div>
+  <div class="ops-panel" id="ops-fuel">
+    <div class="ops-grid"><div class="ops-card"><div class="ops-card-title">Tank Levels</div><div class="fuel-list" id="fuelList"></div></div><div class="ops-card"><div class="ops-card-title">Utilization Snapshot</div><div id="utilizationSnapshot"></div></div></div>
+  </div>
+  <div class="ops-panel" id="ops-maintenance">
+    <div class="ops-grid"><div class="ops-card"><div class="ops-card-title">Maintenance Queue</div><div class="queue" id="maintenanceQueue"></div></div><div class="ops-card"><div class="ops-card-title">Service Rules</div><div style="font-size:11.5px;color:var(--text-muted);line-height:1.6">Service status is calculated from operating hours. Overdue assets are prioritised, followed by assets within 80 hours of their next service. Logging a completed service resets the next interval.</div></div></div>
+  </div>
+  <div class="ops-panel" id="ops-reports">
+    <div class="report-grid" id="reportCards"></div>
+  </div>
+
+  <div class="capabilities" id="capabilitiesBlock">
+    <button type="button" class="cap-toggle" onclick="toggleCapabilities()" aria-expanded="false" aria-controls="capCollapse">
+      <div class="cap-toggle-left">
+        <div class="panel-title" style="margin:0;">Platform Capabilities</div>
+        <span class="cap-count">5</span>
+      </div>
+      <svg class="cap-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="cap-collapse" id="capCollapse">
+      <div class="cap-collapse-inner">
+        <div class="cap-grid">
+          <div class="cap-card">
+            <div class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l2 8 4-16 3 12 2-4h5"/></svg>
+            </div>
+            <div class="cap-name">Real-Time Monitoring</div>
+            <div class="cap-desc">Live hours, status, and location updates streamed for every machine as they happen.</div>
+          </div>
+          <div class="cap-card">
+            <div class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V8a2 2 0 0 1 2-2h5v16"/><path d="M4 12h7"/><path d="M13 7l3.3 3.3c.5.5.7 1 .7 1.7V18a2 2 0 0 1-4 0"/><circle cx="16.5" cy="7.5" r="1.5"/></svg>
+            </div>
+            <div class="cap-name">Fuel Monitoring</div>
+            <div class="cap-desc">Track consumption and tank levels per asset to flag waste, theft, or refuel needs early.</div>
+          </div>
+          <div class="cap-card">
+            <div class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.65 2.65-2-2z"/></svg>
+            </div>
+            <div class="cap-name">Predictive Maintenance</div>
+            <div class="cap-desc">Usage trends forecast service intervals and surface at-risk machines before they break down.</div>
+          </div>
+          <div class="cap-card">
+            <div class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M9 17v4M15 17v4"/><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M17 9h3M17 15h3M4 9h3M4 15h3"/></svg>
+            </div>
+            <div class="cap-name">System Integration</div>
+            <div class="cap-desc">Connects with telematics, ERP, and accounting platforms already in use across the fleet.</div>
+          </div>
+          <div class="cap-card">
+            <div class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            </div>
+            <div class="cap-name">Detailed Reporting</div>
+            <div class="cap-desc">Exportable service history, utilization, and compliance reports for every machine on demand.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+<div class="availability-panel" id="availabilityPanel">
+  <div class="availability-panel-head">
+    <div class="availability-title">Current Availability</div>
+    <div class="availability-total" id="availabilityTotal">— machines</div>
+  </div>
+  <div class="availability-bar" id="availabilityBar"></div>
+  <div class="availability-legend" id="availabilityLegend"></div>
+</div>
+
+<div class="session-bar">
+    <div class="session-user" id="sessionUserToggle" onclick="toggleLoginLog()">
+      <div class="avatar" id="sessionAvatar">—</div>
+      <div>
+        <div class="session-user-name" id="sessionName">Signed out<span class="session-caret">▾</span></div>
+        <div class="session-user-role" id="sessionRole"></div>
+      </div>
+      <div class="login-log" id="loginLogPanel">
+        <div class="login-log-title">Recent Sign-Ins</div>
+        <div id="loginLogList"></div>
+      </div>
+    </div>
+    <div class="presence-strip" id="presenceStrip">
+      <span class="presence-label">Currently on dashboard:</span>
+    </div>
+    <button class="btn btn-ghost" style="font-size:11px;padding:6px 10px;" onclick="logout()">Log Out</button>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="panel-title">Fleet Overview</div>
+      <div class="fleet-toolbar">
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E969B" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="search-input" id="searchInput" placeholder="Search by machine or model…" oninput="renderFleet()" aria-label="Search fleet">
+        </div>
+        <div class="result-count" id="resultCount"></div>
+      </div>
+      <div class="fleet-grid" id="fleetGrid"></div>
+    </div>
+
+    <div>
+      <div class="panel-title">Alert Feed</div>
+      <div class="alerts" id="alertFeed"></div>
+    </div>
+  </div>
+
+</div>
+<!-- /appRoot -->
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h3 id="modalTitle">Log Service</h3>
+    <div class="modal-sub" id="modalSub">Record a completed service and reset the interval.</div>
+
+    <div class="field" id="machineFieldWrapper" style="display:none;">
+      <label>Machine <span class="req">*</span></label>
+      <select id="fieldMachine"></select>
+    </div>
+    <div class="field" id="dateFieldWrapper">
+      <label>Date <span class="req">*</span></label>
+      <input type="date" id="fieldDate">
+      <div class="error-msg">Enter the date the service was carried out.</div>
+    </div>
+    <div class="field" id="hoursFieldWrapper">
+      <label>Hours at service <span class="req">*</span></label>
+      <input type="number" id="fieldHours" placeholder="e.g. 1500">
+      <div class="hint" id="hoursHint">Must be at or above the machine's current hours.</div>
+      <div class="error-msg" id="hoursError">Hours must be a number at or above the current reading.</div>
+    </div>
+    <div class="checks">
+      <div class="check-row"><input type="checkbox" id="fieldOil" checked> Oil changed</div>
+      <div class="check-row"><input type="checkbox" id="fieldFilters" checked> Filters replaced</div>
+    </div>
+    <div class="field">
+      <label>Parts used</label>
+      <input type="text" id="fieldParts" placeholder="e.g. Oil filter, air filter">
+    </div>
+    <div class="field">
+      <label>Cost (ZAR)</label>
+      <input type="number" id="fieldCost" placeholder="e.g. 2400">
+    </div>
+    <div class="field">
+      <label>Technician</label>
+      <input type="text" id="fieldTech" placeholder="e.g. S. Nkosi">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="submitService()">Save & Reset Interval</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="breakdownModalBackdrop">
+  <div class="modal modal-wide">
+    <h3 id="breakdownTitle">Report Breakdown</h3>
+    <div class="modal-sub" id="breakdownSub">Report a problem and the fleet status will update immediately.</div>
+    <div class="breakdown-banner"><strong>⚠ Machine will be marked unavailable</strong><div style="margin-top:4px;font-size:12px;color:var(--text-secondary)">The report is recorded against the logged-in user and can be reviewed by supervisors.</div></div>
+    <div class="field"><label>Problem <span class="required-star">*</span></label><input id="breakProblem" placeholder="e.g. Hydraulic leak, overheating, engine fault"></div>
+    <div class="field"><label>Details / notes</label><textarea id="breakNotes" placeholder="What happened? Any warning lights, noises or visible damage?"></textarea></div>
+    <div class="account-grid"><div class="field"><label>Severity</label><select id="breakSeverity"><option value="critical">Critical — stop machine</option><option value="high">High — repair urgently</option><option value="medium">Medium — monitor / schedule</option></select></div><div class="field"><label>Location</label><input id="breakLocation" placeholder="Site / project"></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeBreakdownModal()">Cancel</button><button class="btn danger-btn" onclick="submitBreakdown()">Report Breakdown</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="sendModalBackdrop">
+  <div class="modal">
+    <h3>Send Alert</h3>
+    <div class="modal-sub">Dispatch this alert to a technician or supervisor.</div>
+
+    <div class="field">
+      <label>Send to <span class="req">*</span></label>
+      <select id="sendTo"></select>
+    </div>
+
+    <div class="field">
+      <label>Channel <span class="req">*</span></label>
+      <div class="channel-picker" id="channelPicker">
+        <div class="channel-opt" data-chan="W" onclick="setSendChannel('W')">WhatsApp</div>
+        <div class="channel-opt" data-chan="S" onclick="setSendChannel('S')">SMS</div>
+        <div class="channel-opt" data-chan="E" onclick="setSendChannel('E')">Email</div>
+        <div class="channel-opt" data-chan="A" onclick="setSendChannel('A')">App</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Message</label>
+      <textarea id="sendMessage" rows="3" style="width:100%;resize:vertical;background:var(--bg-panel-raised);border:1px solid var(--hairline);border-radius:var(--radius);color:var(--text-primary);font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:9px 11px;"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeSendModal()">Cancel</button>
+      <button class="btn" id="sendMessageBtn" onclick="submitSendMessage()">Send Alert</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="machineDetailBackdrop">
+  <div class="modal modal-wide" id="machineDetailModal">
+    <!-- filled by renderMachineDetail() -->
+  </div>
+</div>
+
+<div class="modal-backdrop" id="historyModalBackdrop">
+  <div class="modal modal-wide">
+    <h3>History Catalog</h3>
+    <div class="modal-sub">Full record of logged services and dashboard sign-ins.</div>
+
+    <div class="history-tabs">
+      <button type="button" class="history-tab active" id="tabBtnService" onclick="switchHistoryTab('service')">Service History</button>
+      <button type="button" class="history-tab" id="tabBtnLogin" onclick="switchHistoryTab('login')">Sign-In Log</button>
+      <button type="button" class="history-tab" id="tabBtnMessages" onclick="switchHistoryTab('messages')">Messages Sent</button>
+    </div>
+
+    <div class="history-panel active" id="tabPanelService">
+      <table class="history-table">
+        <thead><tr><th>Machine</th><th>Date</th><th>Hours</th><th>Technician</th><th>Cost</th></tr></thead>
+        <tbody id="serviceHistoryBody"></tbody>
+      </table>
+      <div class="history-empty" id="serviceHistoryEmpty" style="display:none;">No service records logged yet.</div>
+    </div>
+    <div class="history-panel" id="tabPanelLogin">
+      <table class="history-table">
+        <thead><tr><th>User</th><th>Time</th></tr></thead>
+        <tbody id="loginHistoryBody"></tbody>
+      </table>
+      <div class="history-empty" id="loginHistoryEmpty" style="display:none;">No sign-ins recorded yet.</div>
+    </div>
+    <div class="history-panel" id="tabPanelMessages">
+      <table class="history-table">
+        <thead><tr><th>Recipient</th><th>Channel</th><th>Message</th><th>Sent</th></tr></thead>
+        <tbody id="messageHistoryBody"></tbody>
+      </table>
+      <div class="history-empty" id="messageHistoryEmpty" style="display:none;">No alerts sent yet.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeHistoryModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Service logged — interval reset</div>
+
+<script>
+// ---- fleet data ----
+let fleet = [
+  {id:'TLB-01', name:'TLB 01', model:'Backhoe Loader', hours:1420, nextService:1500, interval:250, lastDate:'2026-04-12', tech:'S. Nkosi', fuel:64, site:'Randfontein — Site A', erpId:'ERP-04521', erpSync:'synced', erpLastSync:'6 min ago'},
+  {id:'CAT-320', name:'CAT 320', model:'Excavator', hours:2010, nextService:2000, interval:250, lastDate:'2026-02-28', tech:'R. Botha', fuel:22, site:'Krugersdorp — Site C', erpId:'ERP-04522', erpSync:'error', erpLastSync:'2 hrs ago'},
+  {id:'ROL-04', name:'Roller 04', model:'Vibratory Roller', hours:860, nextService:1000, interval:250, lastDate:'2026-05-01', tech:'S. Nkosi', fuel:81, site:'Randfontein — Site A', erpId:'ERP-04523', erpSync:'synced', erpLastSync:'11 min ago'},
+  {id:'GEN-02', name:'Generator 02', model:'Diesel Genset 80kVA', hours:3120, nextService:3500, interval:500, lastDate:'2026-01-15', tech:'M. Dlamini', fuel:47, site:'Krugersdorp — Site C', erpId:'ERP-04524', erpSync:'pending', erpLastSync:'38 min ago'},
+  {id:'LOA-01', name:'Loader 01', model:'Wheel Loader', hours:1180, nextService:1250, interval:250, lastDate:'2026-05-20', tech:'R. Botha', fuel:9, site:'Roodepoort — Site B', erpId:'ERP-04525', erpSync:'synced', erpLastSync:'3 min ago'},
+  {id:'TLB-02', name:'TLB 02', model:'Backhoe Loader', hours:640, nextService:1000, interval:250, lastDate:'2026-06-02', tech:'M. Dlamini', fuel:73, site:'Roodepoort — Site B', erpId:'ERP-04526', erpSync:'synced', erpLastSync:'9 min ago'},
+];
+
+// ---- service history catalog (seeded from each machine's last known service) ----
+let serviceHistory = fleet.map(m => ({
+  machine: m.name, machineId: m.id, date: m.lastDate, hours: m.hours, tech: m.tech, cost: null
+})).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+let alertIdCounter = 0;
+let alerts = [
+  {id:++alertIdCounter, level:'overdue', chan:'W', text:'CAT 320 requires service now. Current hours: 2,010.', time:'Today, 06:12', sent:false},
+  {id:++alertIdCounter, level:'warning', chan:'S', text:'TLB 01 service due in 80 operating hours.', time:'Today, 05:58', sent:false},
+  {id:++alertIdCounter, level:'warning', chan:'E', text:'Roller 04 service due in 140 operating hours.', time:'Yesterday, 17:30', sent:false},
+  {id:++alertIdCounter, level:'ok', chan:'A', text:'Loader 01 service record updated by R. Botha.', time:'2 days ago', sent:true, sentTo:'M. Dlamini', sentAt:'2 days ago'},
+];
+
+let messageLog = [];
+const channelNames = {W:'WhatsApp', S:'SMS', E:'Email', A:'App Notification'};
+
+// ---- auth ----
+const DEFAULT_USERS = [
+  {username:'s.nkosi', password:'demo123', name:'S. Nkosi', role:'Field Technician'},
+  {username:'r.botha', password:'demo123', name:'R. Botha', role:'Field Technician'},
+  {username:'m.dlamini', password:'demo123', name:'M. Dlamini', role:'Fleet Supervisor'},
+  {username:'admin', password:'demo123', name:'Admin', role:'Administrator'},
+];
+let USERS = (() => { try { return [...DEFAULT_USERS, ...JSON.parse(localStorage.getItem('phatsema_users')||'[]')]; } catch(e){ return [...DEFAULT_USERS]; } })();
+function persistUsers(){ const custom=USERS.filter(u=>!DEFAULT_USERS.some(d=>d.username===u.username)); localStorage.setItem('phatsema_users', JSON.stringify(custom)); }
+
+
+let currentUser = null;
+let pendingUser = null;
+let pending2FACode = null;
+let loginLog = []; // {name, time}
+
+function initials(name){
+  return name.split(' ').map(p => p.replace('.', '')[0]).join('').slice(0,2).toUpperCase();
+}
+
+function showRegister(){ document.getElementById('loginScreen').style.display='none'; document.getElementById('registerScreen').style.display='flex'; document.getElementById('registerError').style.display='none'; setTimeout(()=>document.getElementById('regName').focus(),0); }
+function backToLoginFromRegister(){ document.getElementById('registerScreen').style.display='none'; document.getElementById('loginScreen').style.display='flex'; }
+function updatePasswordStrength(){ const p=document.getElementById('regPassword').value; const el=document.getElementById('passwordStrength'); let score=(p.length>=8)+(/\d/.test(p))+(/[^A-Za-z0-9]/.test(p)); el.textContent=score===3?'Strong password ✓':score===2?'Good — add a symbol or more length':'Use 8+ characters with a number and symbol.'; }
+function createAccount(){
+  const name=document.getElementById('regName').value.trim(), username=document.getElementById('regUsername').value.trim().toLowerCase(), role=document.getElementById('regRole').value, pass=document.getElementById('regPassword').value, confirm=document.getElementById('regConfirm').value, err=document.getElementById('registerError'), ok=document.getElementById('registerSuccess');
+  err.style.display='none'; ok.style.display='none';
+  if(!name || !/^[a-z0-9._-]{3,30}$/.test(username) || pass.length<8 || !/\d/.test(pass) || !/[^A-Za-z0-9]/.test(pass) || pass!==confirm){ err.textContent='Check your details: username must be 3+ characters; password needs 8+ characters, a number and a symbol, and both passwords must match.'; err.style.display='block'; return; }
+  if(USERS.some(u=>u.username===username)){ err.textContent='That username is already taken. Choose another.'; err.style.display='block'; return; }
+  USERS.push({username,password:pass,name,role}); persistUsers();
+  document.getElementById('loginUser').value=username; document.getElementById('loginPass').value=pass; ok.textContent='Account created. You can now sign in.'; ok.style.display='block';
+  setTimeout(backToLoginFromRegister,700);
+}
+
+function attemptLogin(){
+  const u = document.getElementById('loginUser').value.trim().toLowerCase();
+  const p = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const user = USERS.find(x => x.username === u && x.password === p);
+  if(!user){
+    errEl.textContent = 'Incorrect username or password.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  pendingUser = user;
+  pending2FACode = String(Math.floor(100000 + Math.random()*900000));
+  document.getElementById('twoFASub').textContent = `A 6-digit code was sent to ${user.name}'s registered device.`;
+  document.getElementById('demoCodeHint').textContent = `Prototype mode — no SMS/email is actually sent, so the demo code is shown here: ${pending2FACode}`;
+  document.getElementById('twoFACode').value = '';
+  document.getElementById('twoFAError').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('twoFAScreen').style.display = 'flex';
+  setTimeout(() => document.getElementById('twoFACode').focus(), 0);
+}
+
+function backToLogin(){
+  pendingUser = null;
+  document.getElementById('twoFAScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function attemptVerify(){
+  const code = document.getElementById('twoFACode').value.trim();
+  const errEl = document.getElementById('twoFAError');
+  if(!code || code !== pending2FACode){
+    errEl.textContent = 'Incorrect verification code. Please try again.';
+    errEl.style.display = 'block';
+    return;
+  }
+  currentUser = pendingUser;
+  pendingUser = null;
+  pending2FACode = null;
+  loginLog.unshift({name: currentUser.name, time: new Date().toLocaleTimeString('en-ZA', {hour:'2-digit', minute:'2-digit'})});
+  document.getElementById('twoFAScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  presence[currentUser.name] = {status:'viewing', target:null};
+  renderSession();
+  startPresenceSimulation();
+}
+
+function logout(){
+  stopPresenceSimulation();
+  document.getElementById('loginLogPanel').classList.remove('open');
+  currentUser = null;
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+function toggleLoginLog(){
+  document.getElementById('loginLogPanel').classList.toggle('open');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('sessionUserToggle');
+  if(wrap && !wrap.contains(e.target)) document.getElementById('loginLogPanel').classList.remove('open');
+});
+
+function toggleCapabilities(){
+  const block = document.getElementById('capabilitiesBlock');
+  const isOpen = block.classList.toggle('open');
+  block.querySelector('.cap-toggle').setAttribute('aria-expanded', isOpen);
+}
+
+// ---- presence (simulated — no live backend in this prototype) ----
+const teammateNames = USERS.map(u => u.name);
+let presence = {}; // name -> {status:'viewing'|'editing'|'offline', target: machineId|null}
+let presenceTimer = null;
+
+function startPresenceSimulation(){
+  teammateNames.forEach(name => {
+    if(name === currentUser.name) return;
+    presence[name] = randomPresence();
+  });
+  renderSession();
+  renderFleet();
+  presenceTimer = setInterval(() => {
+    teammateNames.forEach(name => {
+      if(name === currentUser.name) return; // never overwrite the real user's live status
+      presence[name] = randomPresence();
+    });
+    renderSession();
+    renderFleet();
+  }, 5000);
+}
+function stopPresenceSimulation(){
+  if(presenceTimer) clearInterval(presenceTimer);
+  presenceTimer = null;
+  presence = {};
+}
+function randomPresence(){
+  const r = Math.random();
+  if(r < 0.55) return {status:'viewing', target:null};
+  if(r < 0.75) return {status:'editing', target: fleet[Math.floor(Math.random()*fleet.length)].id};
+  return {status:'offline', target:null};
+}
+
+function renderSession(){
+  if(!currentUser) return;
+  document.getElementById('sessionAvatar').textContent = initials(currentUser.name);
+  document.getElementById('sessionName').innerHTML = `${currentUser.name}<span class="session-caret">▾</span>`;
+  document.getElementById('sessionRole').textContent = `${currentUser.role} · Signed in`;
+
+  document.getElementById('loginLogList').innerHTML = loginLog.length
+    ? loginLog.slice(0,6).map(l => `<div class="login-log-item"><span>${l.name}</span><span class="t">${l.time}</span></div>`).join('')
+    : '<div class="login-log-item">No sign-ins recorded yet.</div>';
+
+  const strip = document.getElementById('presenceStrip');
+  const others = teammateNames.map(name => {
+    const p = name === currentUser.name ? {status:'viewing', target: presence[currentUser.name]?.target ?? null} : (presence[name] || {status:'offline', target:null});
+    const label = p.status === 'editing'
+      ? `${name} — editing ${p.target ? (fleet.find(f=>f.id===p.target)?.name || '') : 'a record'}`
+      : `${name} — ${p.status}`;
+    return `
+      <span class="presence-avatar-wrap" title="${label}">
+        <span class="avatar" data-status="${p.status}">${initials(name)}</span>
+        <span class="status-dot" data-status="${p.status}"></span>
+      </span>`;
+  }).join('');
+  strip.innerHTML = '<span class="presence-label">Currently on dashboard:</span>' + others;
+}
+
+let activeFilter = 'all'; // 'all' | 'ok' | 'warning' | 'overdue'
+const statusRank = {breakdown:-1, overdue:0, warning:1, ok:2};
+const statusLabel = {ok:'OK', warning:'Due Soon', overdue:'Overdue', breakdown:'Breakdown'};
+
+function statusOf(m){
+  if(m.breakdown && m.breakdown.active) return 'breakdown';
+  const remaining = m.nextService - m.hours;
+  if(remaining <= 0) return 'overdue';
+  if(remaining <= 80) return 'warning';
+  return 'ok';
+}
+
+function setFilter(status){
+  activeFilter = (activeFilter === status) ? 'all' : status;
+  renderSummary();
+  renderFleet();
+}
+
+function visibleFleet(){
+  const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  return fleet
+    .filter(m => activeFilter === 'all' || statusOf(m) === activeFilter)
+    .filter(m => !q || m.name.toLowerCase().includes(q) || m.model.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
+    .sort((a,b) => {
+      const r = statusRank[statusOf(a)] - statusRank[statusOf(b)];
+      if(r !== 0) return r;
+      return (a.nextService - a.hours) - (b.nextService - b.hours);
+    });
+}
+
+function gaugeSVG(m, status){
+  const progress = Math.min(Math.max((m.hours - (m.nextService - m.interval)) / m.interval, 0), 1.15);
+  const angle = -90 + progress * 180; // -90 (empty) to +90 (full)
+  const color = status === 'overdue' ? 'var(--status-overdue)' : status === 'warning' ? 'var(--status-warning)' : 'var(--status-ok)';
+  const cx = 50, cy = 50, r = 40;
+  const startA = -90, endA = Math.min(angle, 90);
+  const toXY = (deg) => {
+    const rad = (deg - 90) * Math.PI/180;
+    return [cx + r*Math.cos(rad), cy + r*Math.sin(rad)];
+  };
+  const [sx, sy] = toXY(startA);
+  const [ex, ey] = toXY(endA);
+  const largeArc = (endA - startA) > 180 ? 1 : 0;
+  const [nx, ny] = toXY(angle);
+  return `
+  <svg width="72" height="46" viewBox="0 0 100 60">
+    <path d="M ${toXY(-90)[0]} ${toXY(-90)[1]} A ${r} ${r} 0 0 1 ${toXY(90)[0]} ${toXY(90)[1]}" fill="none" stroke="var(--steel-dim)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M ${sx} ${sy} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"/>
+    <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${color}" stroke-width="2"/>
+    <circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>
+  </svg>`;
+}
+
+function renderSummary(){
+  const counts = {ok:0, warning:0, overdue:0, breakdown:0};
+  fleet.forEach(m => counts[statusOf(m)]++);
+  const chip = (status, color, label) => `
+    <button type="button" class="chip${activeFilter === status ? ' active' : ''}" onclick="setFilter('${status}')" aria-pressed="${activeFilter === status}">
+      <span class="dot" style="background:${color}"></span>${counts[status]} ${label}
+    </button>`;
+  document.getElementById('summaryChips').innerHTML =
+    chip('ok', 'var(--status-ok)', 'OK') +
+    chip('warning', 'var(--status-warning)', 'Due Soon') +
+    chip('overdue', 'var(--status-overdue)', 'Overdue');
+}
+
+function renderFleet(){
+  const grid = document.getElementById('fleetGrid');
+  const list = visibleFleet();
+  const countEl = document.getElementById('resultCount');
+  const q = document.getElementById('searchInput').value.trim();
+  countEl.textContent = (q || activeFilter !== 'all') ? `${list.length} of ${fleet.length} machines` : `${fleet.length} machines`;
+
+  if(list.length === 0){
+    grid.innerHTML = `
+    <div class="empty-state">
+      No machines match ${q ? `“${q}”` : 'the selected filter'}.
+      <div><button type="button" class="btn btn-ghost" onclick="document.getElementById('searchInput').value='';setFilter('all');">Clear search &amp; filters</button></div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(m => {
+    const status = statusOf(m);
+    const remaining = m.nextService - m.hours;
+    const remLabel = remaining <= 0 ? `${Math.abs(remaining)} hrs over` : `${remaining} hrs left`;
+    const label = statusLabel[status];
+    const ariaLabel = `${m.name}, ${m.model}. Status: ${label}. ${remaining <= 0 ? `${Math.abs(remaining)} hours overdue for service.` : `${remaining} hours remaining until next service.`}`;
+    const editor = Object.entries(presence).find(([name, p]) => p.status === 'editing' && p.target === m.id);
+    const editingFlag = editor ? `<div class="mcard-editing-flag">✎ ${editor[0]} editing</div>` : '';
+    return `
+    <div class="mcard" data-status="${status}" tabindex="0" role="button" aria-label="${ariaLabel}"
+      onclick="openMachineDetail('${m.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMachineDetail('${m.id}');}">
+      ${editingFlag}
+      <div class="mcard-top">
+        <div>
+          <div class="mcard-name">${m.name}</div>
+          <div class="mcard-model">${m.model}</div>
+        </div>
+        <div class="status-badge" data-status="${status}">${label}</div>
+      </div>
+      <div class="gauge-row">
+        ${gaugeSVG(m, status)}
+        <div class="gauge-num">
+          <div class="hrs">${m.hours.toLocaleString()}</div>
+          <div class="lbl">hrs · next ${m.nextService.toLocaleString()} · ${remLabel}</div>
+        </div>
+      </div>
+      <div class="mcard-meta">
+        <span>Last serviced ${m.lastDate}</span>
+        <span>${m.tech}</span>
+      </div>
+      <div class="mcard-actions">
+        <button type="button" class="mcard-break-btn" onclick="event.stopPropagation();openBreakdownModal('${m.id}')">⚠ Report Breakdown</button>
+        <button type="button" class="mcard-log-btn" onclick="event.stopPropagation();openModal('${m.id}')">🔧 Log Service</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAlerts(){
+  const feed = document.getElementById('alertFeed');
+  feed.innerHTML = alerts.map(a => `
+    <div class="alert-item" data-level="${a.level}">
+      <div class="alert-chan" title="${channelNames[a.chan]}">${a.chan}</div>
+      <div class="alert-body">
+        <div class="alert-text">${a.text}</div>
+        <div class="alert-time">${a.time}</div>
+        <div class="alert-actions">
+          ${a.sent
+            ? `<span class="alert-sent-tag">✓ Sent to ${a.sentTo} · ${a.sentAt}</span>`
+            : `<button type="button" class="alert-send-btn" onclick="openSendModal(${a.id})">Send →</button>`}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+let activeMachineId = null;
+function clearFieldErrors(){
+  document.getElementById('dateFieldWrapper').classList.remove('invalid');
+  document.getElementById('hoursFieldWrapper').classList.remove('invalid');
+}
+function openModal(machineId){
+  activeMachineId = machineId || null;
+  const m = fleet.find(x => x.id === machineId);
+  clearFieldErrors();
+
+  if(currentUser){
+    presence[currentUser.name] = {status:'editing', target: machineId || null};
+    renderSession();
+    renderFleet();
+  }
+
+  const machineWrapper = document.getElementById('machineFieldWrapper');
+  const machineSelect = document.getElementById('fieldMachine');
+  if(m){
+    machineWrapper.style.display = 'none';
+  } else {
+    machineWrapper.style.display = '';
+    machineSelect.innerHTML = fleet.map(x => `<option value="${x.id}">${x.name} — ${x.model}</option>`).join('');
+  }
+
+  document.getElementById('modalTitle').textContent = m ? `Log Service — ${m.name}` : 'Log Service';
+  document.getElementById('modalSub').textContent = m
+    ? `Current hours: ${m.hours.toLocaleString()} · next due ${m.nextService.toLocaleString()}`
+    : 'Choose a machine and fill in the service details below.';
+  document.getElementById('fieldDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('fieldHours').value = m ? m.hours : '';
+  document.getElementById('hoursHint').textContent = m
+    ? `Must be at or above the current reading (${m.hours.toLocaleString()} hrs).`
+    : `Must be at or above the selected machine's current hours.`;
+
+  document.getElementById('modalBackdrop').classList.add('open');
+  // Focus the most relevant field so keyboard/typing users can start immediately.
+  setTimeout(() => (m ? document.getElementById('fieldHours') : machineSelect).focus(), 0);
+}
+function closeModal(){
+  document.getElementById('modalBackdrop').classList.remove('open');
+  if(currentUser){
+    presence[currentUser.name] = {status:'viewing', target:null};
+    renderSession();
+    renderFleet();
+  }
+}
+function currentModalMachine(){
+  if(activeMachineId) return fleet.find(x => x.id === activeMachineId);
+  const selectedId = document.getElementById('fieldMachine').value;
+  return fleet.find(x => x.id === selectedId);
+}
+function submitService(){
+  clearFieldErrors();
+  const dateVal = document.getElementById('fieldDate').value;
+  const hoursRaw = document.getElementById('fieldHours').value;
+  const hours = parseInt(hoursRaw, 10);
+  const tech = document.getElementById('fieldTech').value.trim() || 'Unassigned';
+  const m = currentModalMachine();
+
+  let hasError = false;
+  if(!dateVal){
+    document.getElementById('dateFieldWrapper').classList.add('invalid');
+    hasError = true;
+  }
+  if(hoursRaw === '' || isNaN(hours) || (m && hours < m.hours)){
+    document.getElementById('hoursFieldWrapper').classList.add('invalid');
+    hasError = true;
+  }
+  if(hasError){
+    showToast('Please fix the highlighted fields before saving.', true);
+    return;
+  }
+
+  const costRaw = document.getElementById('fieldCost').value;
+
+  m.hours = hours;
+  m.nextService = hours + m.interval;
+  m.lastDate = dateVal;
+  m.tech = tech;
+  serviceHistory.unshift({
+    machine: m.name, machineId: m.id, date: dateVal, hours: hours, tech: tech,
+    cost: costRaw !== '' ? Number(costRaw) : null
+  });
+  alerts.unshift({id:++alertIdCounter, level:'ok', chan:'A', text:`${m.name} service logged by ${tech}. Next service reset to ${m.nextService.toLocaleString()} hrs.`, time:'Just now', sent:false});
+  renderFleet();
+  renderSummary();
+  renderAlerts();
+  closeModal();
+  showToast(`${m.name} service logged — interval reset.`);
+}
+function showToast(message, isError){
+  const t = document.getElementById('toast');
+  t.textContent = message || 'Service logged — interval reset';
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function openHistoryModal(){
+  renderHistoryCatalog();
+  document.getElementById('historyModalBackdrop').classList.add('open');
+}
+function closeHistoryModal(){
+  document.getElementById('historyModalBackdrop').classList.remove('open');
+}
+function switchHistoryTab(tab){
+  document.getElementById('tabBtnService').classList.toggle('active', tab === 'service');
+  document.getElementById('tabBtnLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('tabBtnMessages').classList.toggle('active', tab === 'messages');
+  document.getElementById('tabPanelService').classList.toggle('active', tab === 'service');
+  document.getElementById('tabPanelLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('tabPanelMessages').classList.toggle('active', tab === 'messages');
+}
+function renderHistoryCatalog(){
+  const svcBody = document.getElementById('serviceHistoryBody');
+  const svcEmpty = document.getElementById('serviceHistoryEmpty');
+  if(serviceHistory.length === 0){
+    svcBody.innerHTML = '';
+    svcEmpty.style.display = 'block';
+  } else {
+    svcEmpty.style.display = 'none';
+    svcBody.innerHTML = serviceHistory.map(h => `
+      <tr>
+        <td>${h.machine}<div class="mono">${h.machineId}</div></td>
+        <td class="mono">${h.date}</td>
+        <td class="mono">${h.hours.toLocaleString()} hrs</td>
+        <td>${h.tech}</td>
+        <td class="mono">${h.cost != null ? 'R ' + h.cost.toLocaleString() : '—'}</td>
+      </tr>`).join('');
+  }
+
+  const loginBody = document.getElementById('loginHistoryBody');
+  const loginEmpty = document.getElementById('loginHistoryEmpty');
+  if(loginLog.length === 0){
+    loginBody.innerHTML = '';
+    loginEmpty.style.display = 'block';
+  } else {
+    loginEmpty.style.display = 'none';
+    loginBody.innerHTML = loginLog.map(l => `
+      <tr><td>${l.name}</td><td class="mono">${l.time}</td></tr>`).join('');
+  }
+
+  const msgBody = document.getElementById('messageHistoryBody');
+  const msgEmpty = document.getElementById('messageHistoryEmpty');
+  if(messageLog.length === 0){
+    msgBody.innerHTML = '';
+    msgEmpty.style.display = 'block';
+  } else {
+    msgEmpty.style.display = 'none';
+    msgBody.innerHTML = messageLog.map(msg => `
+      <tr>
+        <td>${msg.to}</td>
+        <td class="mono">${channelNames[msg.chan]}</td>
+        <td>${msg.text}</td>
+        <td class="mono">${msg.time}</td>
+      </tr>`).join('');
+  }
+}
+
+let detailMachineId = null;
+let fuelLiveTimer = null;
+const erpSyncLabel = {synced:'Synced', pending:'Syncing…', error:'Sync Failed'};
+
+function syncErpNow(id){
+  const m = fleet.find(x => x.id === id);
+  if(!m || m.erpSync === 'pending') return;
+  m.erpSync = 'pending';
+  renderMachineDetail();
+  setTimeout(() => {
+    // simulate the round-trip to the ERP system
+    if(detailMachineId !== id) return;
+    m.erpSync = 'synced';
+    m.erpLastSync = 'Just now';
+    renderMachineDetail();
+    showToast(`${m.name} synced with ERP (${m.erpId}).`);
+  }, 1400);
+}
+
+function fuelColor(level){
+  if(level <= 15) return 'var(--status-overdue)';
+  if(level <= 35) return 'var(--status-warning)';
+  return 'var(--status-ok)';
+}
+
+let breakdownMachineId=null;
+function openBreakdownModal(id){ const m=fleet.find(x=>x.id===id); if(!m)return; breakdownMachineId=id; document.getElementById('breakdownTitle').textContent=`Report Breakdown — ${m.name}`; document.getElementById('breakdownSub').textContent=`${m.model} · ${m.site||'No site assigned'} · Current hours ${m.hours.toLocaleString()}`; document.getElementById('breakProblem').value=m.breakdown?.problem||''; document.getElementById('breakNotes').value=m.breakdown?.notes||''; document.getElementById('breakSeverity').value=m.breakdown?.severity||'critical'; document.getElementById('breakLocation').value=m.breakdown?.location||m.site||''; document.getElementById('breakdownModalBackdrop').classList.add('open'); setTimeout(()=>document.getElementById('breakProblem').focus(),0); }
+function closeBreakdownModal(){ document.getElementById('breakdownModalBackdrop').classList.remove('open'); breakdownMachineId=null; }
+function submitBreakdown(){ const m=fleet.find(x=>x.id===breakdownMachineId); const problem=document.getElementById('breakProblem').value.trim(); if(!m||!problem){showToast('Please describe the problem.',true);return;} const now=new Date(); m.breakdown={active:true,problem,notes:document.getElementById('breakNotes').value.trim(),severity:document.getElementById('breakSeverity').value,location:document.getElementById('breakLocation').value.trim()||m.site,reportedBy:currentUser?.name||'Unknown user',time:now.toLocaleString('en-ZA',{dateStyle:'medium',timeStyle:'short'})}; alerts.unshift({id:++alertIdCounter,level:'critical',chan:'A',text:`${m.name} BREAKDOWN: ${problem} — reported by ${m.breakdown.reportedBy}.`,time:'Just now',sent:false}); renderFleet();renderSummary();renderAlerts();renderAvailability();closeBreakdownModal();showToast(`${m.name} marked unavailable — breakdown reported.` ,false); }
+function clearBreakdown(id){ const m=fleet.find(x=>x.id===id); if(!m||!m.breakdown?.active)return; m.breakdown.active=false; alerts.unshift({id:++alertIdCounter,level:'ok',chan:'A',text:`${m.name} breakdown resolved by ${currentUser?.name||'User'}. Machine returned to service.`,time:'Just now',sent:false}); renderFleet();renderSummary();renderAlerts();renderAvailability();renderMachineDetail();showToast(`${m.name} returned to service.`); }
+
+function openMachineDetail(id){
+  detailMachineId = id;
+  renderMachineDetail();
+  document.getElementById('machineDetailBackdrop').classList.add('open');
+  // simulate a live telemetry feed pushing small fuel readings from the machine's device
+  clearInterval(fuelLiveTimer);
+  fuelLiveTimer = setInterval(() => {
+    const m = fleet.find(x => x.id === detailMachineId);
+    if(!m) return;
+    const drift = (Math.random() - 0.65) * 1.5; // trends slightly downward, like real consumption
+    m.fuel = Math.min(100, Math.max(0, Math.round((m.fuel + drift) * 10) / 10));
+    renderMachineDetail();
+  }, 3000);
+}
+
+function closeMachineDetail(){
+  document.getElementById('machineDetailBackdrop').classList.remove('open');
+  clearInterval(fuelLiveTimer);
+  detailMachineId = null;
+}
+
+function renderMachineDetail(){
+  const m = fleet.find(x => x.id === detailMachineId);
+  if(!m) return;
+  const status = statusOf(m);
+  const label = statusLabel[status];
+  const remaining = m.nextService - m.hours;
+  const remLabel = remaining <= 0 ? `${Math.abs(remaining)} hrs over` : `${remaining} hrs left`;
+  const color = fuelColor(m.fuel);
+  const tankLiters = 200; // assumed reference tank size for the liters estimate
+  const litersEst = Math.round(tankLiters * (m.fuel/100));
+
+  document.getElementById('machineDetailModal').innerHTML = `
+    <div class="detail-header">
+      <div>
+        <h3 style="margin:0;">${m.name}</h3>
+        <div class="detail-model">${m.model} · ${m.id}</div>
+      </div>
+      <div class="status-badge" data-status="${status}">${label}</div>
+    </div>
+
+    <div class="fuel-block">
+      <div class="fuel-block-top">
+        <div class="fuel-label">Fuel Level</div>
+        <div class="live-tag"><span class="live-dot"></span>Live from device</div>
+      </div>
+      <div class="fuel-bar-track">
+        <div class="fuel-bar-fill" style="width:${m.fuel}%;background:${color};"></div>
+      </div>
+      <div class="fuel-sub">
+        <span style="color:${color};font-weight:600;">${m.fuel}%</span>
+        <span>≈ ${litersEst} L / ${tankLiters} L tank</span>
+      </div>
+    </div>
+
+    <div class="detail-stats">
+      <div class="detail-stat">
+        <div class="detail-stat-label">Engine Hours</div>
+        <div class="detail-stat-val">${m.hours.toLocaleString()} hrs</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Next Service</div>
+        <div class="detail-stat-val">${m.nextService.toLocaleString()} hrs · ${remLabel}</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Site Location</div>
+        <div class="detail-stat-val">${m.site || 'Unassigned'}</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Last Serviced</div>
+        <div class="detail-stat-val">${m.lastDate} · ${m.tech}</div>
+      </div>
+    </div>
+
+    <div class="erp-block">
+      <div class="erp-block-top">
+        <div class="erp-label">ERP Sync</div>
+        <div class="erp-sync-badge" data-sync="${m.erpSync}">${erpSyncLabel[m.erpSync]}</div>
+      </div>
+      <div class="erp-rows">
+        <div class="erp-row"><span class="k">Linked asset ID</span><span class="v">${m.erpId}</span></div>
+        <div class="erp-row"><span class="k">Last synced</span><span class="v" id="erpLastSyncVal">${m.erpLastSync}</span></div>
+      </div>
+      <button type="button" class="erp-sync-btn" id="erpSyncBtn" onclick="syncErpNow('${m.id}')" ${m.erpSync === 'pending' ? 'disabled' : ''}>
+        ${m.erpSync === 'pending' ? 'Sync in progress…' : 'Sync now'}
+      </button>
+    </div>
+
+    ${m.breakdown?.active ? `<div class="breakdown-banner"><strong>⚠ Active breakdown</strong><div style="margin-top:4px">${m.breakdown.problem} · reported by ${m.breakdown.reportedBy} · ${m.breakdown.time}</div></div>` : ''}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMachineDetail()">Close</button>
+      <button class="btn danger-btn" onclick="closeMachineDetail();openBreakdownModal('${m.id}');">⚠ ${m.breakdown?.active ? 'Update Breakdown' : 'Report Breakdown'}</button>
+      <button class="btn" onclick="closeMachineDetail();openModal('${m.id}');">🔧 Log Service</button>
+    </div>
+  `;
+}
+
+let sendingAlertId = null;
+let sendChannel = 'A';
+
+function openSendModal(alertId){
+  const a = alerts.find(x => x.id === alertId);
+  if(!a) return;
+  sendingAlertId = alertId;
+  sendChannel = a.chan;
+
+  const toSelect = document.getElementById('sendTo');
+  toSelect.innerHTML = USERS.map(u => `<option value="${u.name}">${u.name} — ${u.role}</option>`).join('');
+  document.getElementById('sendMessage').value = a.text;
+  setSendChannel(sendChannel);
+  document.getElementById('sendModalBackdrop').classList.add('open');
+}
+function closeSendModal(){
+  document.getElementById('sendModalBackdrop').classList.remove('open');
+  sendingAlertId = null;
+}
+function setSendChannel(chan){
+  sendChannel = chan;
+  document.querySelectorAll('#channelPicker .channel-opt').forEach(el => {
+    el.classList.toggle('active', el.dataset.chan === chan);
+  });
+}
+function submitSendMessage(){
+  const a = alerts.find(x => x.id === sendingAlertId);
+  if(!a) return;
+  const to = document.getElementById('sendTo').value;
+  const text = document.getElementById('sendMessage').value.trim() || a.text;
+  const btn = document.getElementById('sendMessageBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+
+  // simulate dispatch to the messaging provider (WhatsApp/SMS/Email/App push)
+  setTimeout(() => {
+    a.sent = true;
+    a.sentTo = to;
+    a.sentAt = 'Just now';
+    messageLog.unshift({to, chan: sendChannel, text, time:'Just now'});
+    renderAlerts();
+    btn.disabled = false;
+    btn.textContent = 'Send Alert';
+    closeSendModal();
+    showToast(`Alert sent to ${to} via ${channelNames[sendChannel]}.`);
+  }, 700);
+}
+
+document.getElementById('modalBackdrop').addEventListener('click', (e) => {
+  if(e.target.id === 'modalBackdrop') closeModal();
+});
+document.getElementById('historyModalBackdrop').addEventListener('click', (e) => {
+  if(e.target.id === 'historyModalBackdrop') closeHistoryModal();
+});
+document.getElementById('machineDetailBackdrop').addEventListener('click', (e) => {
+  if(e.target.id === 'machineDetailBackdrop') closeMachineDetail();
+});
+document.getElementById('sendModalBackdrop').addEventListener('click', (e) => {
+  if(e.target.id === 'sendModalBackdrop') closeSendModal();
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && document.getElementById('modalBackdrop').classList.contains('open')){
+    closeModal();
+  }
+  if(e.key === 'Escape' && document.getElementById('historyModalBackdrop').classList.contains('open')){
+    closeHistoryModal();
+  }
+  if(e.key === 'Escape' && document.getElementById('machineDetailBackdrop').classList.contains('open')){
+    closeMachineDetail();
+  }
+  if(e.key === 'Escape' && document.getElementById('sendModalBackdrop').classList.contains('open')){
+    closeSendModal();
+  }
+});
+['fieldDate','fieldHours'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    document.getElementById(id === 'fieldDate' ? 'dateFieldWrapper' : 'hoursFieldWrapper').classList.remove('invalid');
+  });
+});
+
+['loginUser','loginPass'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', (e) => { if(e.key === 'Enter') attemptLogin(); });
+});
+document.getElementById('twoFACode').addEventListener('keydown', (e) => { if(e.key === 'Enter') attemptVerify(); });
+
+document.getElementById('dateline').textContent =
+  `PLANT HIRE FLEET / LIVE STATUS — ${new Date().toLocaleString('en-ZA', {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}`;
+
+renderSummary();
+renderFleet();
+renderAlerts();
+
+/* ---- integrated operations center logic ---- */
+function switchOpsTab(name,btn){
+  document.querySelectorAll('.ops-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.ops-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active'); document.getElementById('ops-'+name).classList.add('active');
+  renderOpsCenter();
+}
+function renderOpsCenter(){
+  if(!Array.isArray(fleet)) return;
+  const avgFuel=Math.round(fleet.reduce((a,m)=>a+m.fuel,0)/fleet.length);
+  const overdue=fleet.filter(m=>statusOf(m)==='overdue').length;
+  const due=fleet.filter(m=>statusOf(m)==='warning').length;
+  const avgHours=Math.round(fleet.reduce((a,m)=>a+m.hours,0)/fleet.length);
+  document.getElementById('opsKpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Assets Tracked</div><div class="kpi-value">${fleet.length}</div><div class="kpi-sub">Telematics-connected prototype assets</div></div>
+    <div class="kpi"><div class="kpi-label">Average Fuel</div><div class="kpi-value">${avgFuel}%</div><div class="kpi-sub">Across all tracked machines</div></div>
+    <div class="kpi"><div class="kpi-label">Service Attention</div><div class="kpi-value">${overdue+due}</div><div class="kpi-sub">${overdue} overdue · ${due} due soon</div></div>
+    <div class="kpi"><div class="kpi-label">Average Hours</div><div class="kpi-value">${avgHours.toLocaleString()}</div><div class="kpi-sub">Current fleet hour reading</div></div>`;
+  const coords=[[20,35],[67,22],[43,66],[77,63],[31,76],[58,43]];
+  document.getElementById('fleetMap').querySelectorAll('.map-pin').forEach(x=>x.remove());
+  fleet.forEach((m,i)=>{const st=statusOf(m);const pin=document.createElement('div');pin.className='map-pin '+st;pin.style.left=coords[i%coords.length][0]+'%';pin.style.top=coords[i%coords.length][1]+'%';pin.title=m.name+' · '+m.site;pin.innerHTML='<span class="map-pin-label">'+m.name+'</span>';document.getElementById('fleetMap').appendChild(pin);});
+  document.getElementById('liveTelemetry').innerHTML=fleet.map(m=>`<div style="display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding:8px 0;border-bottom:1px solid var(--hairline)"><span>${m.name}</span><span style="font:10px 'IBM Plex Mono';color:${statusOf(m)==='overdue'?'var(--status-overdue)':statusOf(m)==='warning'?'var(--status-warning)':'var(--status-ok)'}">LIVE</span><span style="font-size:10px;color:var(--text-muted)">${m.site}</span><span style="font:10px 'IBM Plex Mono';color:var(--text-muted)">${m.hours.toLocaleString()} hrs</span></div>`).join('');
+  document.getElementById('fuelList').innerHTML=fleet.map(m=>{const c=m.fuel<=20?'low':m.fuel<=40?'mid':'';return `<div class="fuel-row"><span class="fuel-name">${m.name}</span><div class="fuel-track"><div class="fuel-fill ${c}" style="width:${Math.max(2,m.fuel)}%"></div></div><span class="fuel-pct">${m.fuel}%</span></div>`}).join('');
+  document.getElementById('utilizationSnapshot').innerHTML=`<div style="font:600 25px 'IBM Plex Mono'">${Math.round(avgHours/50)}%</div><div style="font-size:11px;color:var(--text-muted);margin:4px 0 12px">Prototype utilization index</div><div class="bar-chart">${fleet.map(m=>`<div class="bar" style="height:${Math.min(100,30+(m.hours%500)/5)}%"><span>${m.name.replace(/[^A-Z0-9-]/g,'')}</span></div>`).join('')}</div>`;
+  const sorted=[...fleet].sort((a,b)=>statusRank[statusOf(a)]-statusRank[statusOf(b)] || (a.nextService-a.hours)-(b.nextService-b.hours));
+  document.getElementById('maintenanceQueue').innerHTML=sorted.map(m=>{const st=statusOf(m),rem=m.nextService-m.hours;return `<div class="queue-row"><div class="queue-left"><span class="queue-dot ${st}"></span><span><strong>${m.name}</strong><br><span style="color:var(--text-muted)">${statusLabel[st]}</span></span></div><span class="queue-hours">${rem<=0?Math.abs(rem)+' hrs overdue':rem+' hrs left'}</span></div>`}).join('');
+  const totalCost=serviceHistory.reduce((a,x)=>a+(Number(x.cost)||0),0);
+  document.getElementById('reportCards').innerHTML=`<div class="report-card"><div class="kpi-label">Service Records</div><div class="report-big">${serviceHistory.length}</div><div class="report-small">Logged maintenance events</div></div><div class="report-card"><div class="kpi-label">Recorded Cost</div><div class="report-big">R${totalCost.toLocaleString()}</div><div class="report-small">Known service costs in prototype</div></div><div class="report-card"><div class="kpi-label">Fleet Health</div><div class="report-big">${Math.round(((fleet.length-overdue)/fleet.length)*100)}%</div><div class="report-small">Assets not currently overdue</div></div>`;
+}
+setInterval(()=>{if(document.getElementById('appRoot').style.display!=='none'){fleet.forEach(m=>{if(Math.random()<.35)m.fuel=Math.max(0,Math.min(100,m.fuel+(Math.random()<.5?-1:1)));});renderOpsCenter();}},8000);
+
+</script>
+</body>
+</html>
+
+<script>
+
+// Keep Current Availability synchronized with the fleet dashboard.
+const _originalRenderFleet = window.renderFleet;
+window.renderFleet = function(){
+  if(typeof _originalRenderFleet === 'function') _originalRenderFleet();
+  renderAvailability();
+};
+
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  if(typeof fleet !== 'undefined'){
+    fleet.forEach(m => {
+      if(m.offline === undefined) m.offline = false;
+      if(m.working === undefined) m.working = !['GEN-02'].includes(m.id);
+    });
+    renderAvailability();
+  }
+});
+</script>

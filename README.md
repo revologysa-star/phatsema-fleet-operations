@@ -1,18 +1,34 @@
-# Phatsema Fleet Operations
+# Phatsema Fleet Operations — Full Stack
 
-Production fleet operations application for fleet status, breakdowns, service history, people/access, settings and audit workflows.
+This is the production-oriented no-telematics model: the application records operational information entered by authorised people. It deliberately contains no fuel telemetry, GPS, device tracking or simulated sensor readings.
 
-## Deployment
+## Architecture
+- Frontend: `index.html` (Supabase JS)
+- Backend database/auth/storage: Supabase PostgreSQL, Auth and Storage
+- Atomic fleet workflows: Postgres RPC functions in `supabase/schema.sql`
+- Username login resolver: `username-login-v1`
+- Secure user administration: `admin-user-management`
+- Automatic WhatsApp: `send-whatsapp-alert`
 
-Static frontend: `index.html`
+## Deploy
+1. Create/use the Phatsema Supabase project.
+2. Run `supabase/schema.sql` in Supabase SQL Editor.
+3. Deploy the three Edge Functions under `supabase/functions/`.
+4. Set Edge Function secrets:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `WHATSAPP_ACCESS_TOKEN`
+   - `WHATSAPP_PHONE_NUMBER_ID`
+5. Create the first Head of Operations user in Supabase Auth and insert the matching profile row, or temporarily use the admin-user-management function with an existing authorised manager.
+6. Host `index.html` on Netlify, Vercel, Cloudflare Pages, or another static host.
 
-Backend: Supabase (database, authentication and Edge Functions).
+## WhatsApp
+There are two honest modes:
+- Automatic: the Edge Function calls Meta WhatsApp Cloud API. This requires Phatsema's Meta credentials as Edge Function secrets.
+- Fallback: if automatic sending is not configured, the UI opens WhatsApp with a pre-filled alert instead of pretending it sent a message.
 
-Supabase functions included:
-- `admin-user-management`
-- `username-login-v1`
-- `send-whatsapp-alert`
+Never put a WhatsApp access token in `index.html`.
 
-Database files:
-- `supabase/schema.sql`
-- `supabase/migrations/repair_phatsema_fleet_workflows_and_analytics.sql`
+## Critical workflow guarantees
+Machine state changes are performed through database RPC functions so the breakdown/service/machine updates occur in one database transaction. This prevents the previous bug where a breakdown could be marked resolved while the machine remained in breakdown status.
