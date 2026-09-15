@@ -1,1 +1,11 @@
-{"rewrites":[{"source":"/(.*)","destination":"https://fduccizawxtqnqtuxmjl.supabase.co/functions/v1/phatsema-web-access"}]}
+{
+  "buildCommand": "node scripts/mobile_fix.mjs",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "https://fduccizawxtqnqtuxmjl.supabase.co/functions/v1/phatsema-web-access"
+    }
+  ]
+}
