@@ -40,30 +40,23 @@ main{width:100%;min-width:0;padding:10px;overflow-x:hidden;}
 
 let patched = source.includes(marker) ? source : source.replace('</style>', `${css}</style>`);
 
-// Make the client library URL explicit and stable for the production build.
-patched = patched.replace(
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
-);
-
-// Add a second, independent runtime diagnostic/wiring layer. This runs even when
-// the main application script throws during initialization, making failures visible
-// instead of presenting dead-looking buttons.
-const diagnosticMarker = 'PHATSEMA_RUNTIME_DIAGNOSTICS_V1';
+const diagnosticMarker = 'PHATSEMA_RUNTIME_DIAGNOSTICS_V2';
 if (!patched.includes(diagnosticMarker)) {
   const diagnostic = `<script>
 (function(){
   const MARKER='${diagnosticMarker}';
   window.__phatsemaDiagnostics={marker:MARKER,startedAt:new Date().toISOString(),errors:[]};
   function showError(message){
-    window.__phatsemaDiagnostics.errors.push(String(message));
+    const text=String(message||'Unknown error');
+    window.__phatsemaDiagnostics.errors.push(text);
     const msg=document.getElementById('loginMsg');
-    if(msg && !document.getElementById('app')?.classList.contains('hidden')){
+    if(msg) msg.textContent='Application error: '+text.slice(0,240);
+    if(document.getElementById('app')&&!document.getElementById('app').classList.contains('hidden')){
       let t=document.querySelector('.toast.err');
       if(!t){t=document.createElement('div');t.className='toast err';document.body.appendChild(t)}
-      t.textContent='Application error: '+String(message).slice(0,240);
+      t.textContent='Application error: '+text.slice(0,240);
       setTimeout(()=>t.remove(),6000);
-    } else if(msg) msg.textContent='Application error: '+String(message).slice(0,240);
+    }
   }
   window.addEventListener('error',e=>showError(e.error?.message||e.message||'JavaScript error'));
   window.addEventListener('unhandledrejection',e=>showError(e.reason?.message||e.reason||'Unhandled promise rejection'));
@@ -76,23 +69,25 @@ if (!patched.includes(diagnosticMarker)) {
     }catch(e){showError(e.message||e)}
   }
   function wire(){
-    const map={
-      loginBtn:()=>call('login'),forgotBtn:()=>call('forgot'),logout:()=>call('sb.auth.signOut'),
-      refresh:()=>call('refresh'),auditRefresh:()=>call('renderAudit'),addMachine:()=>call('machineForm'),
-      addBreakdown:()=>call('breakdownForm'),addService:()=>call('serviceForm'),addPerson:()=>call('personForm'),saveSettings:()=>call('saveSettings')
-    };
-    Object.entries(map).forEach(([id,fn])=>{
+    const map={loginBtn:'login',forgotBtn:'forgot',refresh:'refresh',auditRefresh:'renderAudit',addMachine:'machineForm',addBreakdown:'breakdownForm',addService:'serviceForm',addPerson:'personForm',saveSettings:'saveSettings'};
+    Object.entries(map).forEach(([id,name])=>{
       const el=document.getElementById(id);
-      if(el && !el.dataset.runtimeWired){el.addEventListener('click',fn);el.dataset.runtimeWired='1'}
+      if(el && !el.onclick && !el.dataset.runtimeWired){
+        el.addEventListener('click',()=>call(name));
+        el.dataset.runtimeWired='1';
+      }
     });
     const nav=document.getElementById('nav');
-    if(nav && !nav.dataset.runtimeWired){
-      nav.addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b&&typeof window.show==='function')call('show',b.dataset.view)});
-      nav.dataset.runtimeWired='1';
+    if(nav && typeof window.show!=='function'){
+      nav.addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)showError('Navigation handler is unavailable; main application script did not initialize.')});
     }
-    const state={ready:typeof window.supabase!=='undefined',functions:['login','forgot','refresh','machineForm','breakdownForm','serviceForm','saveSettings'].filter(n=>typeof window[n]==='function')};
+    const state={
+      supabaseLoaded:typeof window.supabase!=='undefined',
+      appFunctions:['login','forgot','refresh','machineForm','breakdownForm','serviceForm','saveSettings','boot'].filter(n=>typeof window[n]==='function'),
+      pageReady:!!document.getElementById('loginBtn')&&!!document.getElementById('app')
+    };
     window.__phatsemaDiagnostics.state=state;
-    document.documentElement.dataset.phatsemaDiagnostics=state.ready?'ready':'supabase-missing';
+    document.documentElement.dataset.phatsemaDiagnostics=state.supabaseLoaded?'ready':'supabase-missing';
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();
 })();
