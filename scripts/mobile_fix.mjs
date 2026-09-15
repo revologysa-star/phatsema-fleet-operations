@@ -1,4 +1,5 @@
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+
 const source = readFileSync('index.html', 'utf8');
 const marker = '/* PHATSEMA MOBILE FIX v2 */';
 const css = `
@@ -36,7 +37,69 @@ main{width:100%;min-width:0;padding:10px;overflow-x:hidden;}
 @media(max-width:600px){.top{padding:8px 10px}.brand img{width:38px;height:38px}.brand span{font-size:10px}.top .pill{display:none!important}.top>div:last-child .btn{min-height:42px;padding:9px 11px}.grid{grid-template-columns:1fr 1fr}.card{font-size:12px}.metric{font-size:23px}.hero{min-height:115px}.hero h1{font-size:21px}}
 @media(max-width:380px){.grid{grid-template-columns:1fr}.brand b{font-size:12px}nav button{font-size:12px;padding:9px 10px}}
 `;
-const patched = source.includes(marker) ? source : source.replace('</style>', `${css}</style>`);
+
+let patched = source.includes(marker) ? source : source.replace('</style>', `${css}</style>`);
+
+// Make the client library URL explicit and stable for the production build.
+patched = patched.replace(
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
+);
+
+// Add a second, independent runtime diagnostic/wiring layer. This runs even when
+// the main application script throws during initialization, making failures visible
+// instead of presenting dead-looking buttons.
+const diagnosticMarker = 'PHATSEMA_RUNTIME_DIAGNOSTICS_V1';
+if (!patched.includes(diagnosticMarker)) {
+  const diagnostic = `<script>
+(function(){
+  const MARKER='${diagnosticMarker}';
+  window.__phatsemaDiagnostics={marker:MARKER,startedAt:new Date().toISOString(),errors:[]};
+  function showError(message){
+    window.__phatsemaDiagnostics.errors.push(String(message));
+    const msg=document.getElementById('loginMsg');
+    if(msg && !document.getElementById('app')?.classList.contains('hidden')){
+      let t=document.querySelector('.toast.err');
+      if(!t){t=document.createElement('div');t.className='toast err';document.body.appendChild(t)}
+      t.textContent='Application error: '+String(message).slice(0,240);
+      setTimeout(()=>t.remove(),6000);
+    } else if(msg) msg.textContent='Application error: '+String(message).slice(0,240);
+  }
+  window.addEventListener('error',e=>showError(e.error?.message||e.message||'JavaScript error'));
+  window.addEventListener('unhandledrejection',e=>showError(e.reason?.message||e.reason||'Unhandled promise rejection'));
+  function call(name){
+    const args=[].slice.call(arguments,1);
+    try{
+      if(typeof window[name]!=='function') throw new Error(name+' is not available');
+      const result=window[name].apply(window,args);
+      if(result&&typeof result.catch==='function') result.catch(showError);
+    }catch(e){showError(e.message||e)}
+  }
+  function wire(){
+    const map={
+      loginBtn:()=>call('login'),forgotBtn:()=>call('forgot'),logout:()=>call('sb.auth.signOut'),
+      refresh:()=>call('refresh'),auditRefresh:()=>call('renderAudit'),addMachine:()=>call('machineForm'),
+      addBreakdown:()=>call('breakdownForm'),addService:()=>call('serviceForm'),addPerson:()=>call('personForm'),saveSettings:()=>call('saveSettings')
+    };
+    Object.entries(map).forEach(([id,fn])=>{
+      const el=document.getElementById(id);
+      if(el && !el.dataset.runtimeWired){el.addEventListener('click',fn);el.dataset.runtimeWired='1'}
+    });
+    const nav=document.getElementById('nav');
+    if(nav && !nav.dataset.runtimeWired){
+      nav.addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b&&typeof window.show==='function')call('show',b.dataset.view)});
+      nav.dataset.runtimeWired='1';
+    }
+    const state={ready:typeof window.supabase!=='undefined',functions:['login','forgot','refresh','machineForm','breakdownForm','serviceForm','saveSettings'].filter(n=>typeof window[n]==='function')};
+    window.__phatsemaDiagnostics.state=state;
+    document.documentElement.dataset.phatsemaDiagnostics=state.ready?'ready':'supabase-missing';
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();
+})();
+</script>`;
+  patched=patched.replace('</body>',diagnostic+'</body>');
+}
+
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/index.html', patched, 'utf8');
-console.log('Built mobile-optimized index.html');
+console.log('Built mobile-optimized index.html with runtime diagnostics');
