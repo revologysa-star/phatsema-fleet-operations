@@ -1,88 +1,13 @@
-name: Hard fix fleet dashboard
+name: Hard fix fleet dashboard (disabled)
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Manual emergency run only
+        required: false
+        default: disabled
 jobs:
-  fix:
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Patch fragile fleet loaders
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('index.html')
-          s=p.read_text()
-          if '<!-- PHATSEMA HARD FLEET FIX -->' in s:
-              print('Hard fix already applied')
-              raise SystemExit(0)
-
-          def replace_func(src, name, replacement):
-              pat=r'async function '+re.escape(name)+r'\([^)]*\)\{.*?\n\}'
-              out,n=re.subn(pat,replacement,src,count=1,flags=re.S)
-              if n!=1:
-                  raise SystemExit(f'Could not replace {name}: {n}')
-              return out
-
-          new_load='''async function loadFleet(){
-            try{
-              const m=await db.from('machines').select('*').eq('active',true).order('name');
-              if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}
-              machines=m.data||[];
-              const b=await db.from('breakdowns').select('*,machines(name,fleet_id)').order('started_at',{ascending:false});
-              breakdowns=b.error?[]:(b.data||[]);
-              renderDashboard();renderMachines();renderBreakdowns();
-              return true;
-            }catch(e){notify(e.message||'Unable to load fleet data',true);return false;}
-          }'''
-          s=replace_func(s,'loadFleet',new_load)
-
-          new_refresh='''async function refresh(){
-            const ok=await loadFleet();
-            const s=await db.from('services').select('*,machines(name,fleet_id)').order('service_date',{ascending:false});
-            services=s.error?[]:(s.data||[]);
-            const p=await db.from('profiles').select('*').order('full_name');
-            people=p.error?[]:(p.data||[]);
-            const set=await db.from('app_settings').select('*');
-            settings={};(set.data||[]).forEach(x=>settings[x.key]=x.value);
-            renderAll();
-            return ok;
-          }'''
-          s=replace_func(s,'refresh',new_refresh)
-
-          new_live='''function startLiveRefresh(){
-            if(window.fleetChannel)db.removeChannel(window.fleetChannel);
-            window.fleetChannel=db.channel('phatsema-fleet-live')
-              .on('postgres_changes',{event:'*',schema:'public',table:'machines'},()=>loadFleet())
-              .on('postgres_changes',{event:'*',schema:'public',table:'breakdowns'},()=>loadFleet())
-              .subscribe();
-            clearInterval(window.fleetTimer);
-            window.fleetTimer=setInterval(()=>loadFleet(),5000);
-          }'''
-          s=replace_func(s,'startLiveRefresh',new_live)
-
-          new_complete='''async function completeRepair(id){
-            const ready=confirm('Repair complete. Is the machine ready to go back to work?');
-            let reason=null;
-            if(!ready){
-              reason=prompt('Why is the machine not ready to return to work?');
-              if(reason===null)return;
-            }
-            const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason||null,p_notes:null});
-            if(r.error)return notify(r.error.message,true);
-            await loadFleet();
-            notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');
-          }'''
-          s=replace_func(s,'completeRepair',new_complete)
-
-          s=s.replace("<script>\n","<script>\n<!-- PHATSEMA HARD FLEET FIX -->\n",1)
-          p.write_text(s)
-          PY
-      - name: Commit hard fix
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git diff --cached --quiet || git commit -m 'fix: harden fleet loading and dashboard refresh'
-          git push
+      - run: echo "Legacy dashboard patch workflow disabled; dashboard is maintained in the application source."
