@@ -1,5 +1,1 @@
-{
-  "buildCommand": "node scripts/mobile_fix.mjs",
-  "outputDirectory": "dist",
-  "cleanUrls": true
-}
+{}
