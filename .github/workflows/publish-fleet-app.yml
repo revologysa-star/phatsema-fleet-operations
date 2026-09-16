@@ -14,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply fleet dashboard fix and use Vercel static deployment
+      - name: Apply reliable fleet dashboard fix
         shell: python
         run: |
           from pathlib import Path
@@ -24,53 +24,64 @@ jobs:
               raise SystemExit('index.html not found')
           s = index.read_text(encoding='utf-8')
 
-          marker = 'PHATSEMA DASHBOARD FIX 2026-09-16'
+          marker = 'PHATSEMA DASHBOARD FIX 2026-09-16-V3'
           if marker not in s:
               patch = r'''<script>
-              /* PHATSEMA DASHBOARD FIX 2026-09-16 */
+              /* PHATSEMA DASHBOARD FIX 2026-09-16-V3 */
               (function(){
-                function fleetDashboardFixed(){
+                async function reliableFleetLoad(){
+                  try{
+                    const m=await db.from('machines').select('*').eq('active',true).order('name');
+                    if(m.error){console.warn('Fleet machines query failed',m.error);return;}
+                    machines=m.data||[];
+                    const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});
+                    breakdowns=b.error?[]:(b.data||[]);
+                    renderDashboard();
+                    if(typeof renderMachines==='function')renderMachines();
+                    if(typeof renderBreakdowns==='function')renderBreakdowns();
+                  }catch(e){console.warn('Reliable fleet load failed',e);}
+                }
+                function fixedDashboard(){
                   try{
                     const active=(machines||[]).filter(m=>m.active!==false);
-                    const activeIds=new Set(active.map(m=>m.id));
-                    const openMachineIds=new Set((breakdowns||[])
-                      .filter(b=>!b.resolved_at && b.machine_id && activeIds.has(b.machine_id))
-                      .map(b=>b.machine_id));
-                    const brokenIds=new Set(active.filter(m=>String(m.status||'').toLowerCase()==='breakdown').map(m=>m.id));
-                    openMachineIds.forEach(id=>brokenIds.add(id));
-                    const counts={working:0,available:0,breakdown:0,maintenance:0,offline:0};
+                    const ids=new Set(active.map(m=>m.id));
+                    const open=(breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
+                    const openIds=new Set(open.map(b=>b.machine_id));
+                    let working=0,available=0,broken=new Set();
                     active.forEach(m=>{
-                      const status=brokenIds.has(m.id)?'breakdown':String(m.status||'offline').toLowerCase();
-                      counts[status]=(counts[status]||0)+1;
+                      const st=String(m.status||'').toLowerCase();
+                      if(st==='breakdown')broken.add(m.id);
+                      if(openIds.has(m.id))broken.add(m.id);
+                      if(st==='working'&&!broken.has(m.id))working++;
+                      if(st==='available'&&!openIds.has(m.id))available++;
                     });
-                    const broken=brokenIds.size;
-                    const wp=active.length?Math.round(counts.working/active.length*1000)/10:0;
-                    const op=active.length?Math.round((counts.working+counts.available)/active.length*1000)/10:0;
-                    const set=(id,value)=>{const e=document.getElementById(id);if(e)e.textContent=value;};
-                    set('wp',wp+'%'); set('wc',counts.working+' working'); set('op',op+'%'); set('bc',broken); set('fc',active.length);
+                    const total=active.length;
+                    const wp=total?working/total*100:0;
+                    const op=total?(working+available)/total*100:0;
+                    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+                    set('workingPct',wp.toFixed(1)+'%');
+                    set('workingCount',working+' working of '+total);
+                    set('operationalPct',op.toFixed(1)+'%');
+                    set('breakdownCount',broken.size);
+                    set('fleetCount',total);
                     const attention=document.getElementById('attention');
-                    if(attention){
-                      const latest=new Map();
-                      (breakdowns||[]).filter(b=>!b.resolved_at&&b.machine_id&&activeIds.has(b.machine_id)).forEach(b=>{if(!latest.has(b.machine_id))latest.set(b.machine_id,b);});
-                      const rows=[...latest.values()].slice(0,8);
-                      attention.innerHTML=rows.length?rows.map(b=>{
-                        const name=b.machines?.name||active.find(m=>m.id===b.machine_id)?.name||'Machine';
-                        const reason=b.reason||'Breakdown';
-                        return '<div class="notice" style="margin:6px 0"><b>'+esc(name)+'</b> — '+esc(reason)+'</div>';
-                      }).join(''):'<div class="muted">No active breakdowns.</div>';
-                    }
-                  }catch(e){console.warn('Dashboard refresh failed',e);}
+                    if(attention)attention.innerHTML=open.length?open.slice(0,10).map(b=>'<div class="notice"><b>'+esc(active.find(m=>m.id===b.machine_id)?.name||'Machine')+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>').join(''):'No active breakdowns.';
+                  }catch(e){console.warn('Dashboard calculation failed',e);}
                 }
-                window.renderDashboard=fleetDashboardFixed;
-                setTimeout(fleetDashboardFixed,1500);
-                setInterval(fleetDashboardFixed,30000);
+                const originalRender=window.renderDashboard;
+                window.renderDashboard=fixedDashboard;
+                function tick(){
+                  const app=document.getElementById('app');
+                  if(app&&!app.classList.contains('hidden'))reliableFleetLoad();
+                }
+                setTimeout(tick,500);
+                setInterval(tick,5000);
+                setInterval(fixedDashboard,5000);
               })();
               </script>'''
               s = s.replace('</body>', patch + '\n</body>')
               index.write_text(s, encoding='utf-8')
 
-          # Serve index.html directly from Vercel instead of routing every request
-          # through the Supabase Edge Function that was returning non-2xx responses.
           Path('vercel.json').write_text('{}\n', encoding='utf-8')
 
       - name: Commit published app
@@ -82,5 +93,5 @@ jobs:
             echo "No changes needed"
             exit 0
           fi
-          git commit -m "Publish corrected fleet dashboard online"
+          git commit -m "Fix live fleet dashboard data loading"
           git push
