@@ -157,4 +157,96 @@ $('loginBtn').onclick=signIn;$('forgot').onclick=forgot;$('logout').onclick=()=>
       setInterval(fixedDashboard,5000);
     })();
     </script>
+<script>
+    /* PHATSEMA DASHBOARD FIX 2026-09-16-V4 */
+    (function(){
+      function renderFleetDashboardV4(){
+        try{
+          const active=(window.machines||[]).filter(m=>m.active!==false);
+          const ids=new Set(active.map(m=>m.id));
+          const open=(window.breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
+          const openIds=new Set(open.map(b=>b.machine_id));
+          const brokenIds=new Set(open.map(b=>b.machine_id));
+          active.forEach(m=>{if(String(m.status||'').toLowerCase()==='breakdown')brokenIds.add(m.id);});
+          let working=0,available=0;
+          active.forEach(m=>{
+            const st=String(m.status||'').toLowerCase();
+            if(st==='working'&&!brokenIds.has(m.id))working++;
+            if(st==='available'&&!brokenIds.has(m.id))available++;
+          });
+          const total=active.length;
+          const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+          set('workingPct',(total?working/total*100:0).toFixed(1)+'%');
+          set('workingCount',working+' working of '+total);
+          set('operationalPct',(total?(working+available)/total*100:0).toFixed(1)+'%');
+          set('breakdownCount',brokenIds.size);
+          set('fleetCount',total);
+          const attention=document.getElementById('attention');
+          if(attention){
+            attention.innerHTML=open.length?open.slice(0,10).map(b=>{
+              const name=active.find(m=>m.id===b.machine_id)?.name||b.machines?.name||'Machine';
+              return '<div class="notice"><b>'+esc(name)+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>';
+            }).join(''):'No active breakdowns.';
+          }
+        }catch(e){console.warn('Dashboard V4 failed',e);}
+      }
+
+      async function loadFleetV4(){
+        try{
+          const m=await db.from('machines').select('*').eq('active',true).order('name');
+          if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}
+          machines=m.data||[];
+          const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});
+          if(b.error){console.warn('Breakdowns query failed',b.error);breakdowns=[];}
+          else breakdowns=b.data||[];
+          renderFleetDashboardV4();
+          if(typeof renderMachines==='function')renderMachines();
+          if(typeof renderBreakdowns==='function')renderBreakdowns();
+          return true;
+        }catch(e){notify(e?.message||'Unable to load fleet data',true);return false;}
+      }
+
+      async function completeRepairV4(id){
+        const ready=window.confirm('Repair complete. Is the machine ready to go back to work?');
+        let reason=null;
+        if(!ready){
+          reason=window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:','');
+          if(reason===null)return;
+          reason=reason.trim();
+          if(!reason){notify('A reason is required when the machine is not ready.',true);return;}
+        }
+        const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});
+        if(r.error){notify(r.error.message||'Unable to complete repair',true);return;}
+        await loadFleetV4();
+        renderFleetDashboardV4();
+        notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');
+      }
+
+      window.renderDashboard=renderFleetDashboardV4;
+      window.loadFleet=loadFleetV4;
+      window.completeRepair=completeRepairV4;
+
+      const refreshBtn=document.getElementById('refresh');
+      if(refreshBtn)refreshBtn.onclick=async()=>{await loadFleetV4();if(typeof renderAll==='function')renderAll();};
+      ['kWorking','kOperational'].forEach(id=>{const e=document.getElementById(id);if(e)e.onclick=()=>show('machines');});
+      const breakdownCard=document.getElementById('kBreakdowns');
+      if(breakdownCard)breakdownCard.onclick=()=>show('breakdowns');
+
+      const originalSetWorking=window.setWorking;
+      window.setWorking=async function(id){
+        if(originalSetWorking){
+          await originalSetWorking(id);
+        }else{
+          const r=await db.rpc('set_machine_online',{p_machine_id:id});
+          if(r.error)return notify(r.error.message,true);
+          await loadFleetV4();
+        }
+        await loadFleetV4();
+        renderFleetDashboardV4();
+      };
+
+      setTimeout(async()=>{if(window.profile){await loadFleetV4();renderFleetDashboardV4();}},700);
+      setInterval(async()=>{if(window.profile){await loadFleetV4();renderFleetDashboardV4();}},10000);
+    })();
+    </script>
 </body></html>
