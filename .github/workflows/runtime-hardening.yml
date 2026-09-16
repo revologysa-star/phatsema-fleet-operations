@@ -1,0 +1,62 @@
+name: Phatsema runtime hardening
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Harden global session references
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old=s
+          s=s.replace('window.profile?.role','profile?.role')
+          s=s.replace('window.user?.id','user?.id')
+          s=s.replace('window.people?.filter','people?.filter')
+          marker='<!-- PHATSEMA SESSION SYNC V1 -->'
+          if marker not in s:
+              sync='''<script>\n<!-- PHATSEMA SESSION SYNC V1 -->\n(function(){setInterval(function(){try{if(typeof user!==\"undefined\")window.user=user;if(typeof profile!==\"undefined\")window.profile=profile;if(typeof people!==\"undefined\")window.people=people;if(typeof machines!==\"undefined\")window.machines=machines;if(typeof breakdowns!==\"undefined\")window.breakdowns=breakdowns;}catch(e){}},500);})();\n</script>'''
+              s=s.replace('</body>',sync+'\n</body>',1)
+          if s!=old:p.write_text(s,encoding='utf-8')
+      - name: Validate application
+        shell: bash
+        run: |
+          test -f index.html
+          grep -q 'PHATSEMA OPTIONS V1' index.html
+          grep -q 'PHATSEMA SESSION SYNC V1' index.html
+          grep -q 'id="workingPct"' index.html
+          grep -q 'id="workingCount"' index.html
+          grep -q 'id="operationalPct"' index.html
+          grep -q 'id="breakdownCount"' index.html
+          grep -q 'id="fleetCount"' index.html
+          grep -q 'value="working"' index.html
+          grep -q 'value="available"' index.html
+          grep -q 'Preventive service' index.html
+          grep -q 'Hydraulic' index.html
+          grep -q 'complete_breakdown' index.html
+          grep -q 'set_machine_online' index.html
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert s.count('PHATSEMA OPTIONS V1')==2
+          assert s.count('PHATSEMA SESSION SYNC V1')==2
+          for x in ['workingPct','workingCount','operationalPct','breakdownCount','fleetCount']:
+              assert s.count('id="'+x+'"')==1
+          print('Phatsema runtime/static tests passed.')
+          PY
+      - name: Commit hardening
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then echo 'No hardening changes needed'; exit 0; fi
+          git commit -m 'fix: harden fleet runtime session state'
+          git push
