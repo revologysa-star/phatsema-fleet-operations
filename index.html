@@ -104,4 +104,57 @@ $('loginBtn').onclick=signIn;$('forgot').onclick=forgot;$('logout').onclick=()=>
       setInterval(fleetDashboardFixed,30000);
     })();
     </script>
+<script>
+    /* PHATSEMA DASHBOARD FIX 2026-09-16-V3 */
+    (function(){
+      async function reliableFleetLoad(){
+        try{
+          const m=await db.from('machines').select('*').eq('active',true).order('name');
+          if(m.error){console.warn('Fleet machines query failed',m.error);return;}
+          machines=m.data||[];
+          const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});
+          breakdowns=b.error?[]:(b.data||[]);
+          renderDashboard();
+          if(typeof renderMachines==='function')renderMachines();
+          if(typeof renderBreakdowns==='function')renderBreakdowns();
+        }catch(e){console.warn('Reliable fleet load failed',e);}
+      }
+      function fixedDashboard(){
+        try{
+          const active=(machines||[]).filter(m=>m.active!==false);
+          const ids=new Set(active.map(m=>m.id));
+          const open=(breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
+          const openIds=new Set(open.map(b=>b.machine_id));
+          let working=0,available=0,broken=new Set();
+          active.forEach(m=>{
+            const st=String(m.status||'').toLowerCase();
+            if(st==='breakdown')broken.add(m.id);
+            if(openIds.has(m.id))broken.add(m.id);
+            if(st==='working'&&!broken.has(m.id))working++;
+            if(st==='available'&&!openIds.has(m.id))available++;
+          });
+          const total=active.length;
+          const wp=total?working/total*100:0;
+          const op=total?(working+available)/total*100:0;
+          const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+          set('workingPct',wp.toFixed(1)+'%');
+          set('workingCount',working+' working of '+total);
+          set('operationalPct',op.toFixed(1)+'%');
+          set('breakdownCount',broken.size);
+          set('fleetCount',total);
+          const attention=document.getElementById('attention');
+          if(attention)attention.innerHTML=open.length?open.slice(0,10).map(b=>'<div class="notice"><b>'+esc(active.find(m=>m.id===b.machine_id)?.name||'Machine')+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>').join(''):'No active breakdowns.';
+        }catch(e){console.warn('Dashboard calculation failed',e);}
+      }
+      const originalRender=window.renderDashboard;
+      window.renderDashboard=fixedDashboard;
+      function tick(){
+        const app=document.getElementById('app');
+        if(app&&!app.classList.contains('hidden'))reliableFleetLoad();
+      }
+      setTimeout(tick,500);
+      setInterval(tick,5000);
+      setInterval(fixedDashboard,5000);
+    })();
+    </script>
 </body></html>
