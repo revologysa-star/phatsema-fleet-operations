@@ -1,0 +1,94 @@
+name: Phatsema options and tests
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  options:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Add working option dialogs once
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='<!-- PHATSEMA OPTIONS V1 -->'
+          if marker not in s:
+              patch=r'''<style id="phatsema-options-style">
+              .ph-options-backdrop{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:1000;padding:14px}
+              .ph-options-box{width:min(620px,100%);max-height:92vh;overflow:auto;background:#121718;border:1px solid #ffffff25;border-radius:16px;padding:18px;box-shadow:0 20px 60px #000}
+              .ph-options-box h2{margin:0 0 14px}.ph-options-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ph-options-grid label{font-weight:700}.ph-options-grid .full{grid-column:1/-1}.ph-options-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}.ph-options-box select,.ph-options-box input,.ph-options-box textarea{margin:5px 0 10px;width:100%}
+              @media(max-width:600px){.ph-options-grid{grid-template-columns:1fr}.ph-options-grid .full{grid-column:auto}}
+              </style>
+              <script>
+              /* PHATSEMA OPTIONS V1 */
+              (function(){
+                const q=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+                function close(){document.querySelector('.ph-options-backdrop')?.remove()}
+                function box(title,body,submit){
+                  close();const d=document.createElement('div');d.className='ph-options-backdrop';d.innerHTML='<div class="ph-options-box"><h2>'+title+'</h2>'+body+'<div class="ph-options-actions"><button type="button" class="btn alt" data-ph-close>Cancel</button><button type="submit" class="btn">Save</button></div></div>';
+                  document.body.appendChild(d);d.querySelector('[data-ph-close]').onclick=close;d.addEventListener('click',e=>{if(e.target===d)close()});const f=d.querySelector('form');if(f)f.onsubmit=async e=>{e.preventDefault();await submit(f);};return d;
+                }
+                function machinesForOptions(){return window.machines||[]}
+                async function openMachine(){
+                  if(!['foreman','operations_manager','head_of_operations'].includes(window.profile?.role)){notify('You do not have permission to add machines.',true);return}
+                  const d=box('Add machine','<form><div class="ph-options-grid"><label>Fleet ID<input name="fleet_id" required placeholder="e.g. FL-101"></label><label>Machine name<input name="name" required></label><label>Model<input name="model"></label><label>Site<input name="site"></label><label>Starting hours<input name="hours" type="number" min="0" value="0" required></label><label>Status<select name="status"><option value="available">Available</option><option value="working">Working</option><option value="maintenance">Maintenance</option><option value="offline">Offline</option></select></label></div></form>',async f=>{const x=Object.fromEntries(new FormData(f));x.hours=Number(x.hours||0);const r=await db.from('machines').insert(x);if(r.error){notify(r.error.message,true);return}close();await window.loadFleet?.();notify('Machine added.')});
+                }
+                async function openBreakdown(){
+                  const ms=machinesForOptions().filter(m=>m.active!==false);if(!ms.length){notify('No active machines available.',true);return}
+                  const ps=window.people?.filter(p=>p.active!==false)||[];const opts=ms.map(m=>'<option value="'+q(m.id)+'">'+q(m.name)+' — '+q(m.fleet_id)+'</option>').join('');const tech=ps.map(p=>'<option value="'+q(p.id)+'">'+q(p.full_name)+' ('+q(p.role)+')</option>').join('');
+                  box('Report breakdown','<form><div class="ph-options-grid"><label class="full">Machine<select name="machine_id" required>'+opts+'</select></label><label>Reason<select name="reason"><option>Engine</option><option>Hydraulic</option><option>Electrical</option><option>Tyre / Track</option><option>Cooling system</option><option>Transmission</option><option>Other</option></select></label><label>Assigned technician<select name="assigned_to"><option value="">Unassigned</option>'+tech+'</select></label><label class="full">Notes<textarea name="notes" rows="3" placeholder="Describe the problem"></textarea></label></div></form>',async f=>{const x=Object.fromEntries(new FormData(f));x.reported_by=window.user?.id||null;x.assigned_to=x.assigned_to||null;const r=await db.from('breakdowns').insert(x);if(r.error){notify(r.error.message,true);return}close();await window.loadFleet?.();notify('Breakdown reported.')});
+                }
+                async function openService(){
+                  const ms=machinesForOptions().filter(m=>m.active!==false);if(!ms.length){notify('No active machines available.',true);return}
+                  const opts=ms.map(m=>'<option value="'+q(m.id)+'">'+q(m.name)+' — '+q(m.fleet_id)+' (current '+Number(m.hours||0).toLocaleString()+'h)</option>').join('');
+                  box('Log service','<form><div class="ph-options-grid"><label class="full">Machine<select name="machine_id" required>'+opts+'</select></label><label>Service type<select name="work_completed"><option>Daily inspection</option><option>Preventive service</option><option>500-hour service</option><option>1000-hour service</option><option>Repair</option><option>Other</option></select></label><label>Hour reading<input name="hour_reading" type="number" min="0" required></label><label class="full">Notes<textarea name="notes" rows="3"></textarea></label></div></form>',async f=>{const x=Object.fromEntries(new FormData(f));const m=machinesForOptions().find(z=>z.id===x.machine_id);if(m&&Number(x.hour_reading)<Number(m.hours||0)){notify('Hour reading cannot be lower than the machine current hours.',true);return}x.hour_reading=Number(x.hour_reading);x.recorded_by=window.user?.id||null;const r=await db.from('services').insert(x);if(r.error){notify(r.error.message,true);return}close();await window.loadFleet?.();notify('Service logged.')});
+                }
+                document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='addMachine'){e.preventDefault();e.stopImmediatePropagation();openMachine()}else if(b.id==='addBreakdown'){e.preventDefault();e.stopImmediatePropagation();openBreakdown()}else if(b.id==='addService'){e.preventDefault();e.stopImmediatePropagation();openService()}},true);
+              })();
+              </script>'''
+              s=s.replace('</body>',marker+'\n'+patch+'\n</body>',1)
+              p.write_text(s,encoding='utf-8')
+      - name: Validate HTML and JavaScript
+        shell: bash
+        run: |
+          test -f index.html
+          grep -q 'PHATSEMA OPTIONS V1' index.html
+          grep -q 'id="workingPct"' index.html
+          grep -q 'id="workingCount"' index.html
+          grep -q 'id="operationalPct"' index.html
+          grep -q 'id="breakdownCount"' index.html
+          grep -q 'id="fleetCount"' index.html
+          grep -q 'value="working"' index.html
+          grep -q 'value="available"' index.html
+          grep -q 'Preventive service' index.html
+          grep -q 'Hydraulic' index.html
+          grep -q 'complete_breakdown' index.html
+          grep -q 'set_machine_online' index.html
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:[^>]*)>(.*?)</script>',s,re.S)
+          assert scripts, 'No inline JavaScript found'
+          assert s.count('PHATSEMA OPTIONS V1')==2, 'Options patch marker duplicated'
+          assert s.count('id="workingPct"')==1
+          assert s.count('id="workingCount"')==1
+          assert s.count('id="operationalPct"')==1
+          assert s.count('id="breakdownCount"')==1
+          assert s.count('id="fleetCount"')==1
+          print('Static structure tests passed.')
+          PY
+      - name: Commit options patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then echo 'No changes needed'; exit 0; fi
+          git commit -m 'fix: restore fleet action options and add tests'
+          git push
