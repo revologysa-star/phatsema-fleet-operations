@@ -65,181 +65,91 @@ async function completeRepair(id){const ready=confirm('Repair complete. Is the m
 async function loadAudit(){if(!manager())return;const r=await db.from('audit_log').select('*').order('created_at',{ascending:false}).limit(100);$('auditBody').innerHTML=(r.data||[]).map(a=>'<tr><td>'+date(a.created_at)+'</td><td>'+esc(a.action)+'</td><td>'+esc(a.entity_type)+'</td><td>'+esc(JSON.stringify(a.details||{}))+'</td></tr>').join('')}
 async function forgot(){const e=$('email').value.trim();if(!e.includes('@'))return $('loginMsg').textContent='Enter your email address first.';const r=await db.auth.resetPasswordForEmail(e,{redirectTo:location.origin});$('loginMsg').textContent=r.error?r.error.message:'Password reset email sent.'}
 $('loginBtn').onclick=signIn;$('forgot').onclick=forgot;$('logout').onclick=()=>db.auth.signOut();$('refresh').onclick=refresh;$('auditRefresh').onclick=loadAudit;$('kBreakdowns').onclick=()=>show('breakdowns');$('kWorking').onclick=()=>show('machines');$('kOperational').onclick=()=>show('machines');$('nav').onclick=e=>{const b=e.target.closest('button[data-v]');if(b)show(b.dataset.v)};['machineSearch','breakdownSearch','serviceSearch'].forEach(id=>$(id).oninput=renderAll);db.auth.getSession().then(s=>{if(s.data.session)loadUser()});db.auth.onAuthStateChange((e,s)=>{if(s&&!profile)loadUser();if(!s){profile=null;user=null;$('app').classList.add('hidden');$('login').classList.remove('hidden')}});</script><script>
-/* PHATSEMA DASHBOARD FINAL FIX */
+<script>
+/* PHATSEMA DASHBOARD SINGLE SOURCE OF TRUTH */
 (function(){
-  const activeMachines=()=> (window.machines||[]).filter(m=>m.active!==false);
-  function renderDashboardFinal(){
-    try{
-      const active=activeMachines();
-      const ids=new Set(active.map(m=>m.id));
-      const open=(window.breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
-      const broken=new Set(active.filter(m=>String(m.status||'').toLowerCase()==='breakdown').map(m=>m.id));
-      open.forEach(b=>broken.add(b.machine_id));
-      let working=0,available=0;
-      active.forEach(m=>{
-        const st=String(m.status||'').toLowerCase();
-        if(st==='working'&&!broken.has(m.id)) working++;
-        if(st==='available'&&!broken.has(m.id)) available++;
-      });
-      const total=active.length;
-      const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-      set('workingPct',(total?working/total*100:0).toFixed(1)+'%');
-      set('workingCount',working+' working of '+total);
-      set('operationalPct',(total?(working+available)/total*100:0).toFixed(1)+'%');
-      set('breakdownCount',broken.size);
-      set('fleetCount',total);
-      const attention=document.getElementById('attention');
-      if(attention){
-        attention.innerHTML=open.length?open.slice(0,10).map(b=>{
-          const m=active.find(x=>x.id===b.machine_id);
-          return '<div class="notice"><b>'+esc(m?.name||'Machine')+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>';
-        }).join(''):'No active breakdowns.';
-      }
-    }catch(e){console.warn('Dashboard final render failed',e);}
-  }
-  async function loadFleetFinal(){
-    try{
-      const m=await db.from('machines').select('*').eq('active',true).order('name');
-      if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}
-      window.machines=m.data||[];
-      const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});
-      window.breakdowns=b.error?[]:(b.data||[]);
-      renderDashboardFinal();
-      if(typeof renderMachines==='function')renderMachines();
-      if(typeof renderBreakdowns==='function')renderBreakdowns();
-      return true;
-    }catch(e){notify(e?.message||'Unable to load fleet data',true);return false;}
-  }
-  async function completeRepairFinal(id){
-    const ready=window.confirm('Repair complete. Is the machine ready to go back to work?');
-    let reason=null;
-    if(!ready){
-      reason=window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:','');
-      if(reason===null)return;
-      reason=reason.trim();
-      if(!reason){notify('A reason is required when the machine is not ready.',true);return;}
+  function activeMachines(){ return (window.machines || []).filter(m => m.active !== false); }
+  function renderFleetDashboard(){
+    const active = activeMachines();
+    const ids = new Set(active.map(m => m.id));
+    const open = (window.breakdowns || []).filter(b => !b.resolved_at && ids.has(b.machine_id));
+    const broken = new Set(active.filter(m => String(m.status || '').toLowerCase() === 'breakdown').map(m => m.id));
+    open.forEach(b => broken.add(b.machine_id));
+    let working = 0, available = 0;
+    active.forEach(m => {
+      const st = String(m.status || '').toLowerCase();
+      if (st === 'working' && !broken.has(m.id)) working++;
+      if (st === 'available' && !broken.has(m.id)) available++;
+    });
+    const total = active.length;
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    set('workingPct', (total ? working / total * 100 : 0).toFixed(1) + '%');
+    set('workingCount', working + ' working of ' + total);
+    set('operationalPct', (total ? (working + available) / total * 100 : 0).toFixed(1) + '%');
+    set('breakdownCount', broken.size);
+    set('fleetCount', total);
+    const attention = document.getElementById('attention');
+    if (attention) {
+      attention.innerHTML = open.length ? open.slice(0,10).map(b => {
+        const m = active.find(x => x.id === b.machine_id);
+        return '<div class="notice"><b>' + esc(m?.name || 'Machine') + '</b> — ' + esc(b.reason || 'Breakdown') + ' <span>' + date(b.started_at) + '</span></div>';
+      }).join('') : 'No active breakdowns.';
     }
-    const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});
-    if(r.error){notify(r.error.message||'Unable to complete repair',true);return;}
-    await loadFleetFinal();
-    notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');
   }
-  async function setWorkingFinal(id){
-    const r=await db.rpc('set_machine_online',{p_machine_id:id});
-    if(r.error){notify(r.error.message||'Unable to set machine working',true);return;}
-    await loadFleetFinal();
+  async function loadFleetSingle(){
+    try {
+      const m = await db.from('machines').select('*').eq('active', true).order('name');
+      if (m.error) { notify(m.error.message || 'Unable to load machines', true); return false; }
+      window.machines = m.data || [];
+      const b = await db.from('breakdowns').select('*').order('started_at', {ascending:false});
+      window.breakdowns = b.error ? [] : (b.data || []);
+      renderFleetDashboard();
+      if (typeof renderMachines === 'function') renderMachines();
+      if (typeof renderBreakdowns === 'function') renderBreakdowns();
+      return true;
+    } catch (e) {
+      notify(e?.message || 'Unable to load fleet data', true);
+      return false;
+    }
+  }
+  async function completeRepairSingle(id){
+    const ready = window.confirm('Repair complete. Is the machine ready to go back to work?');
+    let reason = null;
+    if (!ready) {
+      reason = window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:', '');
+      if (reason === null) return;
+      reason = reason.trim();
+      if (!reason) { notify('A reason is required when the machine is not ready.', true); return; }
+    }
+    const r = await db.rpc('complete_breakdown', {p_breakdown_id:id, p_ready:ready, p_reason:reason, p_notes:null});
+    if (r.error) { notify(r.error.message || 'Unable to complete repair', true); return; }
+    await loadFleetSingle();
+    notify(ready ? 'Machine returned to working.' : 'Repair recorded; machine remains on breakdown.');
+  }
+  async function setWorkingSingle(id){
+    const r = await db.rpc('set_machine_online', {p_machine_id:id});
+    if (r.error) { notify(r.error.message || 'Unable to set machine working', true); return; }
+    await loadFleetSingle();
     notify('Machine is working.');
   }
-  window.renderDashboard=renderDashboardFinal;
-  window.loadFleet=loadFleetFinal;
-  window.completeRepair=completeRepairFinal;
-  window.setWorking=setWorkingFinal;
-  const refresh=document.getElementById('refresh');
-  if(refresh)refresh.onclick=async()=>{await loadFleetFinal();if(typeof renderAll==='function')renderAll();};
-  ['kWorking','kOperational'].forEach(id=>{const e=document.getElementById(id);if(e)e.onclick=()=>show('machines');});
-  const bd=document.getElementById('kBreakdowns');
-  if(bd)bd.onclick=()=>show('breakdowns');
+  window.renderDashboard = renderFleetDashboard;
+  window.loadFleet = loadFleetSingle;
+  window.completeRepair = completeRepairSingle;
+  window.setWorking = setWorkingSingle;
+  const refresh = document.getElementById('refresh');
+  if (refresh) refresh.onclick = loadFleetSingle;
+  ['kWorking','kOperational'].forEach(id => { const e=document.getElementById(id); if(e) e.onclick=()=>show('machines'); });
+  const bd=document.getElementById('kBreakdowns'); if(bd) bd.onclick=()=>show('breakdowns');
   let busy=false;
-  async function tick(){
-    if(busy||!window.profile)return;
-    busy=true;
-    try{await loadFleetFinal();}finally{busy=false;}
-  }
-  setTimeout(tick,800);
-  setInterval(tick,5000);
-  if(window.db&&db.channel){
-    db.channel('phatsema-dashboard-final-'+Date.now())
+  async function tick(){ if(busy || !window.profile) return; busy=true; try{await loadFleetSingle();} finally{busy=false;} }
+  setTimeout(tick, 800);
+  setInterval(tick, 5000);
+  if (window.db && db.channel) {
+    db.channel('phatsema-dashboard-single-' + Date.now())
       .on('postgres_changes',{event:'*',schema:'public',table:'machines'},tick)
       .on('postgres_changes',{event:'*',schema:'public',table:'breakdowns'},tick)
       .subscribe();
   }
 })();
 </script>
-<script>
-    /* PHATSEMA DASHBOARD FIX 2026-09-16-V5 */
-    (function(){
-      function renderFleetDashboardV5(){
-        try{
-          const active=(machines||[]).filter(m=>m.active!==false);
-          const ids=new Set(active.map(m=>m.id));
-          const open=(breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
-          const openIds=new Set(open.map(b=>b.machine_id));
-          const brokenIds=new Set(open.map(b=>b.machine_id));
-          active.forEach(m=>{if(String(m.status||'').toLowerCase()==='breakdown')brokenIds.add(m.id);});
-          let working=0,available=0;
-          active.forEach(m=>{
-            const st=String(m.status||'').toLowerCase();
-            if(st==='working'&&!brokenIds.has(m.id))working++;
-            if(st==='available'&&!brokenIds.has(m.id))available++;
-          });
-          const total=active.length;
-          const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-          set('workingPct',(total?working/total*100:0).toFixed(1)+'%');
-          set('workingCount',working+' working of '+total);
-          set('operationalPct',(total?(working+available)/total*100:0).toFixed(1)+'%');
-          set('breakdownCount',brokenIds.size);
-          set('fleetCount',total);
-          const attention=document.getElementById('attention');
-          if(attention){
-            attention.innerHTML=open.length?open.slice(0,10).map(b=>{
-              const name=active.find(m=>m.id===b.machine_id)?.name||b.machines?.name||'Machine';
-              return '<div class="notice"><b>'+esc(name)+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>';
-            }).join(''):'No active breakdowns.';
-          }
-        }catch(e){console.warn('Dashboard V5 failed',e);}
-      }
-
-      async function loadFleetV5(){
-        try{
-          const m=await db.from('machines').select('*').eq('active',true).order('name');
-          if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}
-          machines=m.data||[];
-          const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});
-          if(b.error){console.warn('Breakdowns query failed',b.error);breakdowns=[];}
-          else breakdowns=b.data||[];
-          renderFleetDashboardV5();
-          if(typeof renderMachines==='function')renderMachines();
-          if(typeof renderBreakdowns==='function')renderBreakdowns();
-          return true;
-        }catch(e){notify(e?.message||'Unable to load fleet data',true);return false;}
-      }
-
-      async function completeRepairV5(id){
-        const ready=window.confirm('Repair complete. Is the machine ready to go back to work?');
-        let reason=null;
-        if(!ready){
-          reason=window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:','');
-          if(reason===null)return;
-          reason=reason.trim();
-          if(!reason){notify('A reason is required when the machine is not ready.',true);return;}
-        }
-        const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});
-        if(r.error){notify(r.error.message||'Unable to complete repair',true);return;}
-        await loadFleetV5();
-        renderFleetDashboardV5();
-        notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');
-      }
-
-      window.renderDashboard=renderFleetDashboardV5;
-      window.loadFleet=loadFleetV5;
-      window.completeRepair=completeRepairV5;
-
-      const refreshBtn=document.getElementById('refresh');
-      if(refreshBtn)refreshBtn.onclick=async()=>{await loadFleetV5();if(typeof renderAll==='function')renderAll();};
-      ['kWorking','kOperational'].forEach(id=>{const e=document.getElementById(id);if(e)e.onclick=()=>show('machines');});
-      const breakdownCard=document.getElementById('kBreakdowns');
-      if(breakdownCard)breakdownCard.onclick=()=>show('breakdowns');
-
-      window.setWorking=async function(id){
-        const r=await db.rpc('set_machine_online',{p_machine_id:id});
-        if(r.error){notify(r.error.message||'Unable to set machine working',true);return;}
-        await loadFleetV5();
-        renderFleetDashboardV5();
-        notify('Machine is working.');
-      };
-
-      setTimeout(async()=>{if(profile){await loadFleetV5();renderFleetDashboardV5();}},700);
-      setInterval(async()=>{if(profile){await loadFleetV5();renderFleetDashboardV5();}},10000);
-    })();
-    </script>
 </body></html>
