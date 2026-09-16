@@ -39,4 +39,44 @@ function personForm(){modal('Add user',`<div class="field"><label>Full name</lab
 async function completeRepair(id){const ready=confirm('Repair complete. Is the machine ready to go back to work?\n\nOK = YES\nCancel = NO');if(ready){const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:true,p_reason:null,p_notes:'Repair completed and machine returned to work.'});if(r.error)return notify(r.error.message,true);await refresh();notify('Machine returned to Working.')}else{const reason=prompt('Why is the machine not ready?');if(!reason)return;const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:false,p_reason:reason,p_notes:'Repair completed but machine not ready.'});if(r.error)return notify(r.error.message,true);await refresh();notify('Machine remains on Breakdown.')}}window.completeRepair=completeRepair;
 async function saveSettings(){const vals={service_interval_hours:Number($('serviceInterval').value),service_warning_hours:Number($('serviceWarning').value),whatsapp_alert_number:$('whatsappNumber').value.replace(/\D/g,''),whatsapp_alerts_enabled:$('whatsappEnabled').value==='true'};for(const [key,value] of Object.entries(vals)){const r=await db.from('app_settings').upsert({key,value,updated_by:user.id,updated_at:new Date().toISOString()});if(r.error)return notify(r.error.message,true)}await refresh();notify('Settings saved.')}
 $('loginBtn').onclick=signIn;$('forgot').onclick=forgot;$('logout').onclick=()=>db.auth.signOut();$('refresh').onclick=refresh;$('addMachine').onclick=()=>machineForm();$('addBreakdown').onclick=breakdownForm;$('addService').onclick=serviceForm;$('addPerson').onclick=personForm;$('saveSettings').onclick=saveSettings;$('auditRefresh').onclick=loadAudit;$('kBreakdowns').onclick=()=>show('breakdowns');$('kWorking').onclick=()=>show('machines');$('kOperational').onclick=()=>show('machines');$('nav').onclick=e=>{const b=e.target.closest('button[data-v]');if(b)show(b.dataset.v)};['machineSearch','breakdownSearch','serviceSearch'].forEach(id=>$(id).oninput=renderAll);boot();
-</script></body></html>
+</script><script>
+    /* PHATSEMA DASHBOARD FIX 2026-09-16 */
+    (function(){
+      function fleetDashboardFixed(){
+        try{
+          const active=(machines||[]).filter(m=>m.active!==false);
+          const activeIds=new Set(active.map(m=>m.id));
+          const openMachineIds=new Set((breakdowns||[])
+            .filter(b=>!b.resolved_at && b.machine_id && activeIds.has(b.machine_id))
+            .map(b=>b.machine_id));
+          const brokenIds=new Set(active.filter(m=>String(m.status||'').toLowerCase()==='breakdown').map(m=>m.id));
+          openMachineIds.forEach(id=>brokenIds.add(id));
+          const counts={working:0,available:0,breakdown:0,maintenance:0,offline:0};
+          active.forEach(m=>{
+            const status=brokenIds.has(m.id)?'breakdown':String(m.status||'offline').toLowerCase();
+            counts[status]=(counts[status]||0)+1;
+          });
+          const broken=brokenIds.size;
+          const wp=active.length?Math.round(counts.working/active.length*1000)/10:0;
+          const op=active.length?Math.round((counts.working+counts.available)/active.length*1000)/10:0;
+          const set=(id,value)=>{const e=document.getElementById(id);if(e)e.textContent=value;};
+          set('wp',wp+'%'); set('wc',counts.working+' working'); set('op',op+'%'); set('bc',broken); set('fc',active.length);
+          const attention=document.getElementById('attention');
+          if(attention){
+            const latest=new Map();
+            (breakdowns||[]).filter(b=>!b.resolved_at&&b.machine_id&&activeIds.has(b.machine_id)).forEach(b=>{if(!latest.has(b.machine_id))latest.set(b.machine_id,b);});
+            const rows=[...latest.values()].slice(0,8);
+            attention.innerHTML=rows.length?rows.map(b=>{
+              const name=b.machines?.name||active.find(m=>m.id===b.machine_id)?.name||'Machine';
+              const reason=b.reason||'Breakdown';
+              return '<div class="notice" style="margin:6px 0"><b>'+esc(name)+'</b> — '+esc(reason)+'</div>';
+            }).join(''):'<div class="muted">No active breakdowns.</div>';
+          }
+        }catch(e){console.warn('Dashboard refresh failed',e);}
+      }
+      window.renderDashboard=fleetDashboardFixed;
+      setTimeout(fleetDashboardFixed,1500);
+      setInterval(fleetDashboardFixed,30000);
+    })();
+    </script>
+</body></html>
