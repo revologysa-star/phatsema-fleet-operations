@@ -1,37 +1,8 @@
-name: Integrate dashboard fix
+name: Integrate dashboard fix (disabled)
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'dashboard-fix.js'
-      - 'index.html'
-permissions:
-  contents: write
+  workflow_dispatch:
 jobs:
-  integrate:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Inject dashboard fix script
-        shell: bash
-        run: |
-          set -e
-          if ! grep -q 'dashboard-fix.js' index.html; then
-            python - <<'PY'
-from pathlib import Path
-p=Path('index.html')
-s=p.read_text()
-marker='</body>'
-insert='<script src="/dashboard-fix.js"></script>'
-if marker not in s:
-    raise SystemExit('Missing </body> marker')
-s=s.replace(marker, insert+marker, 1)
-p.write_text(s)
-PY
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add index.html
-            git commit -m 'Integrate reliable dashboard data loader'
-            git push
-          fi
+      - run: echo "Legacy dashboard integration workflow disabled."
