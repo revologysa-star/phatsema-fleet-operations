@@ -16,4 +16,44 @@ async function setWorking(id){const r=await db.rpc('set_machine_online',{p_machi
 async function completeRepair(id){const ready=confirm('Repair complete. Is the machine ready to go back to work?');if(!ready)return notify('Machine remains on breakdown.');const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:true});if(r.error)return notify(r.error.message,true);await loadFleet();notify('Machine returned to working.')};window.completeRepair=completeRepair;
 async function loadAudit(){if(!manager())return;const r=await db.from('audit_log').select('*').order('created_at',{ascending:false}).limit(100);$('auditBody').innerHTML=(r.data||[]).map(a=>'<tr><td>'+date(a.created_at)+'</td><td>'+esc(a.action)+'</td><td>'+esc(a.entity_type)+'</td><td>'+esc(JSON.stringify(a.details||{}))+'</td></tr>').join('')}
 async function forgot(){const e=$('email').value.trim();if(!e.includes('@'))return $('loginMsg').textContent='Enter your email address first.';const r=await db.auth.resetPasswordForEmail(e,{redirectTo:location.origin});$('loginMsg').textContent=r.error?r.error.message:'Password reset email sent.'}
-$('loginBtn').onclick=signIn;$('forgot').onclick=forgot;$('logout').onclick=()=>db.auth.signOut();$('refresh').onclick=refresh;$('auditRefresh').onclick=loadAudit;$('kBreakdowns').onclick=()=>show('breakdowns');$('kWorking').onclick=()=>show('machines');$('kOperational').onclick=()=>show('machines');$('nav').onclick=e=>{const b=e.target.closest('button[data-v]');if(b)show(b.dataset.v)};['machineSearch','breakdownSearch','serviceSearch'].forEach(id=>$(id).oninput=renderAll);db.auth.getSession().then(s=>{if(s.data.session)loadUser()});db.auth.onAuthStateChange((e,s)=>{if(s&&!profile)loadUser();if(!s){profile=null;user=null;$('app').classList.add('hidden');$('login').classList.remove('hidden')}});</script></body></html>
+$('loginBtn').onclick=signIn;$('forgot').onclick=forgot;$('logout').onclick=()=>db.auth.signOut();$('refresh').onclick=refresh;$('auditRefresh').onclick=loadAudit;$('kBreakdowns').onclick=()=>show('breakdowns');$('kWorking').onclick=()=>show('machines');$('kOperational').onclick=()=>show('machines');$('nav').onclick=e=>{const b=e.target.closest('button[data-v]');if(b)show(b.dataset.v)};['machineSearch','breakdownSearch','serviceSearch'].forEach(id=>$(id).oninput=renderAll);db.auth.getSession().then(s=>{if(s.data.session)loadUser()});db.auth.onAuthStateChange((e,s)=>{if(s&&!profile)loadUser();if(!s){profile=null;user=null;$('app').classList.add('hidden');$('login').classList.remove('hidden')}});</script><script>
+    /* PHATSEMA DASHBOARD FIX 2026-09-16 */
+    (function(){
+      function fleetDashboardFixed(){
+        try{
+          const active=(machines||[]).filter(m=>m.active!==false);
+          const activeIds=new Set(active.map(m=>m.id));
+          const openMachineIds=new Set((breakdowns||[])
+            .filter(b=>!b.resolved_at && b.machine_id && activeIds.has(b.machine_id))
+            .map(b=>b.machine_id));
+          const brokenIds=new Set(active.filter(m=>String(m.status||'').toLowerCase()==='breakdown').map(m=>m.id));
+          openMachineIds.forEach(id=>brokenIds.add(id));
+          const counts={working:0,available:0,breakdown:0,maintenance:0,offline:0};
+          active.forEach(m=>{
+            const status=brokenIds.has(m.id)?'breakdown':String(m.status||'offline').toLowerCase();
+            counts[status]=(counts[status]||0)+1;
+          });
+          const broken=brokenIds.size;
+          const wp=active.length?Math.round(counts.working/active.length*1000)/10:0;
+          const op=active.length?Math.round((counts.working+counts.available)/active.length*1000)/10:0;
+          const set=(id,value)=>{const e=document.getElementById(id);if(e)e.textContent=value;};
+          set('wp',wp+'%'); set('wc',counts.working+' working'); set('op',op+'%'); set('bc',broken); set('fc',active.length);
+          const attention=document.getElementById('attention');
+          if(attention){
+            const latest=new Map();
+            (breakdowns||[]).filter(b=>!b.resolved_at&&b.machine_id&&activeIds.has(b.machine_id)).forEach(b=>{if(!latest.has(b.machine_id))latest.set(b.machine_id,b);});
+            const rows=[...latest.values()].slice(0,8);
+            attention.innerHTML=rows.length?rows.map(b=>{
+              const name=b.machines?.name||active.find(m=>m.id===b.machine_id)?.name||'Machine';
+              const reason=b.reason||'Breakdown';
+              return '<div class="notice" style="margin:6px 0"><b>'+esc(name)+'</b> — '+esc(reason)+'</div>';
+            }).join(''):'<div class="muted">No active breakdowns.</div>';
+          }
+        }catch(e){console.warn('Dashboard refresh failed',e);}
+      }
+      window.renderDashboard=fleetDashboardFixed;
+      setTimeout(fleetDashboardFixed,1500);
+      setInterval(fleetDashboardFixed,30000);
+    })();
+    </script>
+</body></html>
