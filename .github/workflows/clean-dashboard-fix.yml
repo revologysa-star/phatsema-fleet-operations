@@ -1,0 +1,41 @@
+name: Clean Phatsema Dashboard Fix
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'index.html'
+
+permissions:
+  contents: write
+
+jobs:
+  clean-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Replace layered dashboard patches with one clean patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<script>\n    /* PHATSEMA DASHBOARD FIX 2026-09-16 */'
+          if marker in s:
+              s = s.split(marker, 1)[0] + '''<script>\n/* PHATSEMA DASHBOARD FINAL FIX */\n(function(){\n  const activeMachines=()=> (window.machines||[]).filter(m=>m.active!==false);\n  function renderDashboardFinal(){\n    try{\n      const active=activeMachines();\n      const ids=new Set(active.map(m=>m.id));\n      const open=(window.breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));\n      const broken=new Set(active.filter(m=>String(m.status||'').toLowerCase()==='breakdown').map(m=>m.id));\n      open.forEach(b=>broken.add(b.machine_id));\n      let working=0,available=0;\n      active.forEach(m=>{\n        const st=String(m.status||'').toLowerCase();\n        if(st==='working'&&!broken.has(m.id)) working++;\n        if(st==='available'&&!broken.has(m.id)) available++;\n      });\n      const total=active.length;\n      const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};\n      set('workingPct',(total?working/total*100:0).toFixed(1)+'%');\n      set('workingCount',working+' working of '+total);\n      set('operationalPct',(total?(working+available)/total*100:0).toFixed(1)+'%');\n      set('breakdownCount',broken.size);\n      set('fleetCount',total);\n      const attention=document.getElementById('attention');\n      if(attention){\n        attention.innerHTML=open.length?open.slice(0,10).map(b=>{\n          const m=active.find(x=>x.id===b.machine_id);\n          return '<div class="notice"><b>'+esc(m?.name||'Machine')+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>';\n        }).join(''):'No active breakdowns.';\n      }\n    }catch(e){console.warn('Dashboard final render failed',e);}\n  }\n  async function loadFleetFinal(){\n    try{\n      const m=await db.from('machines').select('*').eq('active',true).order('name');\n      if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}\n      window.machines=m.data||[];\n      const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});\n      window.breakdowns=b.error?[]:(b.data||[]);\n      renderDashboardFinal();\n      if(typeof renderMachines==='function')renderMachines();\n      if(typeof renderBreakdowns==='function')renderBreakdowns();\n      return true;\n    }catch(e){notify(e?.message||'Unable to load fleet data',true);return false;}\n  }\n  async function completeRepairFinal(id){\n    const ready=window.confirm('Repair complete. Is the machine ready to go back to work?');\n    let reason=null;\n    if(!ready){\n      reason=window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:','');\n      if(reason===null)return;\n      reason=reason.trim();\n      if(!reason){notify('A reason is required when the machine is not ready.',true);return;}\n    }\n    const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});\n    if(r.error){notify(r.error.message||'Unable to complete repair',true);return;}\n    await loadFleetFinal();\n    notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');\n  }\n  async function setWorkingFinal(id){\n    const r=await db.rpc('set_machine_online',{p_machine_id:id});\n    if(r.error){notify(r.error.message||'Unable to set machine working',true);return;}\n    await loadFleetFinal();\n    notify('Machine is working.');\n  }\n  window.renderDashboard=renderDashboardFinal;\n  window.loadFleet=loadFleetFinal;\n  window.completeRepair=completeRepairFinal;\n  window.setWorking=setWorkingFinal;\n  const refresh=document.getElementById('refresh');\n  if(refresh)refresh.onclick=async()=>{await loadFleetFinal();if(typeof renderAll==='function')renderAll();};\n  ['kWorking','kOperational'].forEach(id=>{const e=document.getElementById(id);if(e)e.onclick=()=>show('machines');});\n  const bd=document.getElementById('kBreakdowns');\n  if(bd)bd.onclick=()=>show('breakdowns');\n  let busy=false;\n  async function tick(){\n    if(busy||!window.profile)return;\n    busy=true;\n    try{await loadFleetFinal();}finally{busy=false;}\n  }\n  setTimeout(tick,800);\n  setInterval(tick,5000);\n  if(window.db&&db.channel){\n    db.channel('phatsema-dashboard-final-'+Date.now())\n      .on('postgres_changes',{event:'*',schema:'public',table:'machines'},tick)\n      .on('postgres_changes',{event:'*',schema:'public',table:'breakdowns'},tick)\n      .subscribe();\n  }\n})();\n</script>\n</body></html>\n'''
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit cleaned dashboard
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then
+            echo 'No dashboard changes needed'
+          else
+            git commit -m 'fix: simplify dashboard refresh and realtime updates'
+            git push
+          fi
