@@ -16,16 +16,115 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Replace layered dashboard patches with one clean patch
+      - name: Replace all layered dashboard patches with one clean patch
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          marker = '<script>\n    /* PHATSEMA DASHBOARD FIX 2026-09-16 */'
-          if marker in s:
-              s = s.split(marker, 1)[0] + '''<script>\n/* PHATSEMA DASHBOARD FINAL FIX */\n(function(){\n  const activeMachines=()=> (window.machines||[]).filter(m=>m.active!==false);\n  function renderDashboardFinal(){\n    try{\n      const active=activeMachines();\n      const ids=new Set(active.map(m=>m.id));\n      const open=(window.breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));\n      const broken=new Set(active.filter(m=>String(m.status||'').toLowerCase()==='breakdown').map(m=>m.id));\n      open.forEach(b=>broken.add(b.machine_id));\n      let working=0,available=0;\n      active.forEach(m=>{\n        const st=String(m.status||'').toLowerCase();\n        if(st==='working'&&!broken.has(m.id)) working++;\n        if(st==='available'&&!broken.has(m.id)) available++;\n      });\n      const total=active.length;\n      const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};\n      set('workingPct',(total?working/total*100:0).toFixed(1)+'%');\n      set('workingCount',working+' working of '+total);\n      set('operationalPct',(total?(working+available)/total*100:0).toFixed(1)+'%');\n      set('breakdownCount',broken.size);\n      set('fleetCount',total);\n      const attention=document.getElementById('attention');\n      if(attention){\n        attention.innerHTML=open.length?open.slice(0,10).map(b=>{\n          const m=active.find(x=>x.id===b.machine_id);\n          return '<div class="notice"><b>'+esc(m?.name||'Machine')+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>';\n        }).join(''):'No active breakdowns.';\n      }\n    }catch(e){console.warn('Dashboard final render failed',e);}\n  }\n  async function loadFleetFinal(){\n    try{\n      const m=await db.from('machines').select('*').eq('active',true).order('name');\n      if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}\n      window.machines=m.data||[];\n      const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});\n      window.breakdowns=b.error?[]:(b.data||[]);\n      renderDashboardFinal();\n      if(typeof renderMachines==='function')renderMachines();\n      if(typeof renderBreakdowns==='function')renderBreakdowns();\n      return true;\n    }catch(e){notify(e?.message||'Unable to load fleet data',true);return false;}\n  }\n  async function completeRepairFinal(id){\n    const ready=window.confirm('Repair complete. Is the machine ready to go back to work?');\n    let reason=null;\n    if(!ready){\n      reason=window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:','');\n      if(reason===null)return;\n      reason=reason.trim();\n      if(!reason){notify('A reason is required when the machine is not ready.',true);return;}\n    }\n    const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});\n    if(r.error){notify(r.error.message||'Unable to complete repair',true);return;}\n    await loadFleetFinal();\n    notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');\n  }\n  async function setWorkingFinal(id){\n    const r=await db.rpc('set_machine_online',{p_machine_id:id});\n    if(r.error){notify(r.error.message||'Unable to set machine working',true);return;}\n    await loadFleetFinal();\n    notify('Machine is working.');\n  }\n  window.renderDashboard=renderDashboardFinal;\n  window.loadFleet=loadFleetFinal;\n  window.completeRepair=completeRepairFinal;\n  window.setWorking=setWorkingFinal;\n  const refresh=document.getElementById('refresh');\n  if(refresh)refresh.onclick=async()=>{await loadFleetFinal();if(typeof renderAll==='function')renderAll();};\n  ['kWorking','kOperational'].forEach(id=>{const e=document.getElementById(id);if(e)e.onclick=()=>show('machines');});\n  const bd=document.getElementById('kBreakdowns');\n  if(bd)bd.onclick=()=>show('breakdowns');\n  let busy=false;\n  async function tick(){\n    if(busy||!window.profile)return;\n    busy=true;\n    try{await loadFleetFinal();}finally{busy=false;}\n  }\n  setTimeout(tick,800);\n  setInterval(tick,5000);\n  if(window.db&&db.channel){\n    db.channel('phatsema-dashboard-final-'+Date.now())\n      .on('postgres_changes',{event:'*',schema:'public',table:'machines'},tick)\n      .on('postgres_changes',{event:'*',schema:'public',table:'breakdowns'},tick)\n      .subscribe();\n  }\n})();\n</script>\n</body></html>\n'''
-          p.write_text(s, encoding='utf-8')
+          markers = [
+              '/* PHATSEMA DASHBOARD FIX 2026-09-16 */',
+              '/* PHATSEMA DASHBOARD FIX 2026-09-16-V5 */',
+              '/* PHATSEMA DASHBOARD FINAL FIX */'
+          ]
+          positions = [s.find(m) for m in markers if s.find(m) >= 0]
+          if not positions:
+              print('No layered dashboard patch marker found; leaving file unchanged')
+              raise SystemExit(0)
+          cut = min(positions)
+          prefix = s[:cut]
+          if '<script>' in prefix:
+              prefix = prefix.rstrip()
+          clean = r'''<script>
+          /* PHATSEMA DASHBOARD SINGLE SOURCE OF TRUTH */
+          (function(){
+            function activeMachines(){ return (window.machines || []).filter(m => m.active !== false); }
+            function renderFleetDashboard(){
+              const active = activeMachines();
+              const ids = new Set(active.map(m => m.id));
+              const open = (window.breakdowns || []).filter(b => !b.resolved_at && ids.has(b.machine_id));
+              const broken = new Set(active.filter(m => String(m.status || '').toLowerCase() === 'breakdown').map(m => m.id));
+              open.forEach(b => broken.add(b.machine_id));
+              let working = 0, available = 0;
+              active.forEach(m => {
+                const st = String(m.status || '').toLowerCase();
+                if (st === 'working' && !broken.has(m.id)) working++;
+                if (st === 'available' && !broken.has(m.id)) available++;
+              });
+              const total = active.length;
+              const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+              set('workingPct', (total ? working / total * 100 : 0).toFixed(1) + '%');
+              set('workingCount', working + ' working of ' + total);
+              set('operationalPct', (total ? (working + available) / total * 100 : 0).toFixed(1) + '%');
+              set('breakdownCount', broken.size);
+              set('fleetCount', total);
+              const attention = document.getElementById('attention');
+              if (attention) {
+                attention.innerHTML = open.length ? open.slice(0,10).map(b => {
+                  const m = active.find(x => x.id === b.machine_id);
+                  return '<div class="notice"><b>' + esc(m?.name || 'Machine') + '</b> — ' + esc(b.reason || 'Breakdown') + ' <span>' + date(b.started_at) + '</span></div>';
+                }).join('') : 'No active breakdowns.';
+              }
+            }
+            async function loadFleetSingle(){
+              try {
+                const m = await db.from('machines').select('*').eq('active', true).order('name');
+                if (m.error) { notify(m.error.message || 'Unable to load machines', true); return false; }
+                window.machines = m.data || [];
+                const b = await db.from('breakdowns').select('*').order('started_at', {ascending:false});
+                window.breakdowns = b.error ? [] : (b.data || []);
+                renderFleetDashboard();
+                if (typeof renderMachines === 'function') renderMachines();
+                if (typeof renderBreakdowns === 'function') renderBreakdowns();
+                return true;
+              } catch (e) {
+                notify(e?.message || 'Unable to load fleet data', true);
+                return false;
+              }
+            }
+            async function completeRepairSingle(id){
+              const ready = window.confirm('Repair complete. Is the machine ready to go back to work?');
+              let reason = null;
+              if (!ready) {
+                reason = window.prompt('The machine will remain on breakdown. Please enter the reason it is not ready:', '');
+                if (reason === null) return;
+                reason = reason.trim();
+                if (!reason) { notify('A reason is required when the machine is not ready.', true); return; }
+              }
+              const r = await db.rpc('complete_breakdown', {p_breakdown_id:id, p_ready:ready, p_reason:reason, p_notes:null});
+              if (r.error) { notify(r.error.message || 'Unable to complete repair', true); return; }
+              await loadFleetSingle();
+              notify(ready ? 'Machine returned to working.' : 'Repair recorded; machine remains on breakdown.');
+            }
+            async function setWorkingSingle(id){
+              const r = await db.rpc('set_machine_online', {p_machine_id:id});
+              if (r.error) { notify(r.error.message || 'Unable to set machine working', true); return; }
+              await loadFleetSingle();
+              notify('Machine is working.');
+            }
+            window.renderDashboard = renderFleetDashboard;
+            window.loadFleet = loadFleetSingle;
+            window.completeRepair = completeRepairSingle;
+            window.setWorking = setWorkingSingle;
+            const refresh = document.getElementById('refresh');
+            if (refresh) refresh.onclick = loadFleetSingle;
+            ['kWorking','kOperational'].forEach(id => { const e=document.getElementById(id); if(e) e.onclick=()=>show('machines'); });
+            const bd=document.getElementById('kBreakdowns'); if(bd) bd.onclick=()=>show('breakdowns');
+            let busy=false;
+            async function tick(){ if(busy || !window.profile) return; busy=true; try{await loadFleetSingle();} finally{busy=false;} }
+            setTimeout(tick, 800);
+            setInterval(tick, 5000);
+            if (window.db && db.channel) {
+              db.channel('phatsema-dashboard-single-' + Date.now())
+                .on('postgres_changes',{event:'*',schema:'public',table:'machines'},tick)
+                .on('postgres_changes',{event:'*',schema:'public',table:'breakdowns'},tick)
+                .subscribe();
+            }
+          })();
+          </script>
+          </body></html>
+          '''
+          p.write_text(prefix + '\n' + clean, encoding='utf-8')
           PY
 
       - name: Commit cleaned dashboard
@@ -36,6 +135,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No dashboard changes needed'
           else
-            git commit -m 'fix: simplify dashboard refresh and realtime updates'
+            git commit -m 'fix: remove duplicate dashboard patches'
             git push
           fi
