@@ -24,16 +24,16 @@ jobs:
               raise SystemExit('index.html not found')
           s = index.read_text(encoding='utf-8')
 
-          marker = 'PHATSEMA DASHBOARD FIX 2026-09-16-V4'
+          marker = 'PHATSEMA DASHBOARD FIX 2026-09-16-V5'
           if marker not in s:
               patch = r'''<script>
-              /* PHATSEMA DASHBOARD FIX 2026-09-16-V4 */
+              /* PHATSEMA DASHBOARD FIX 2026-09-16-V5 */
               (function(){
-                function renderFleetDashboardV4(){
+                function renderFleetDashboardV5(){
                   try{
-                    const active=(window.machines||[]).filter(m=>m.active!==false);
+                    const active=(machines||[]).filter(m=>m.active!==false);
                     const ids=new Set(active.map(m=>m.id));
-                    const open=(window.breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
+                    const open=(breakdowns||[]).filter(b=>!b.resolved_at&&ids.has(b.machine_id));
                     const openIds=new Set(open.map(b=>b.machine_id));
                     const brokenIds=new Set(open.map(b=>b.machine_id));
                     active.forEach(m=>{if(String(m.status||'').toLowerCase()==='breakdown')brokenIds.add(m.id);});
@@ -57,10 +57,10 @@ jobs:
                         return '<div class="notice"><b>'+esc(name)+'</b> — '+esc(b.reason||'Breakdown')+' <span>'+date(b.started_at)+'</span></div>';
                       }).join(''):'No active breakdowns.';
                     }
-                  }catch(e){console.warn('Dashboard V4 failed',e);}
+                  }catch(e){console.warn('Dashboard V5 failed',e);}
                 }
 
-                async function loadFleetV4(){
+                async function loadFleetV5(){
                   try{
                     const m=await db.from('machines').select('*').eq('active',true).order('name');
                     if(m.error){notify(m.error.message||'Unable to load machines',true);return false;}
@@ -68,14 +68,14 @@ jobs:
                     const b=await db.from('breakdowns').select('*').order('started_at',{ascending:false});
                     if(b.error){console.warn('Breakdowns query failed',b.error);breakdowns=[];}
                     else breakdowns=b.data||[];
-                    renderFleetDashboardV4();
+                    renderFleetDashboardV5();
                     if(typeof renderMachines==='function')renderMachines();
                     if(typeof renderBreakdowns==='function')renderBreakdowns();
                     return true;
                   }catch(e){notify(e?.message||'Unable to load fleet data',true);return false;}
                 }
 
-                async function completeRepairV4(id){
+                async function completeRepairV5(id){
                   const ready=window.confirm('Repair complete. Is the machine ready to go back to work?');
                   let reason=null;
                   if(!ready){
@@ -86,36 +86,31 @@ jobs:
                   }
                   const r=await db.rpc('complete_breakdown',{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});
                   if(r.error){notify(r.error.message||'Unable to complete repair',true);return;}
-                  await loadFleetV4();
-                  renderFleetDashboardV4();
+                  await loadFleetV5();
+                  renderFleetDashboardV5();
                   notify(ready?'Machine returned to working.':'Repair recorded; machine remains on breakdown.');
                 }
 
-                window.renderDashboard=renderFleetDashboardV4;
-                window.loadFleet=loadFleetV4;
-                window.completeRepair=completeRepairV4;
+                window.renderDashboard=renderFleetDashboardV5;
+                window.loadFleet=loadFleetV5;
+                window.completeRepair=completeRepairV5;
 
                 const refreshBtn=document.getElementById('refresh');
-                if(refreshBtn)refreshBtn.onclick=async()=>{await loadFleetV4();if(typeof renderAll==='function')renderAll();};
+                if(refreshBtn)refreshBtn.onclick=async()=>{await loadFleetV5();if(typeof renderAll==='function')renderAll();};
                 ['kWorking','kOperational'].forEach(id=>{const e=document.getElementById(id);if(e)e.onclick=()=>show('machines');});
                 const breakdownCard=document.getElementById('kBreakdowns');
                 if(breakdownCard)breakdownCard.onclick=()=>show('breakdowns');
 
-                const originalSetWorking=window.setWorking;
                 window.setWorking=async function(id){
-                  if(originalSetWorking){
-                    await originalSetWorking(id);
-                  }else{
-                    const r=await db.rpc('set_machine_online',{p_machine_id:id});
-                    if(r.error)return notify(r.error.message,true);
-                    await loadFleetV4();
-                  }
-                  await loadFleetV4();
-                  renderFleetDashboardV4();
+                  const r=await db.rpc('set_machine_online',{p_machine_id:id});
+                  if(r.error){notify(r.error.message||'Unable to set machine working',true);return;}
+                  await loadFleetV5();
+                  renderFleetDashboardV5();
+                  notify('Machine is working.');
                 };
 
-                setTimeout(async()=>{if(window.profile){await loadFleetV4();renderFleetDashboardV4();}},700);
-                setInterval(async()=>{if(window.profile){await loadFleetV4();renderFleetDashboardV4();}},10000);
+                setTimeout(async()=>{if(profile){await loadFleetV5();renderFleetDashboardV5();}},700);
+                setInterval(async()=>{if(profile){await loadFleetV5();renderFleetDashboardV5();}},10000);
               })();
               </script>'''
               s = s.replace('</body>', patch + '\n</body>')
@@ -132,5 +127,5 @@ jobs:
             echo "No changes needed"
             exit 0
           fi
-          git commit -m "Fix dashboard refresh and breakdown workflow"
+          git commit -m "Fix dashboard global state binding"
           git push
