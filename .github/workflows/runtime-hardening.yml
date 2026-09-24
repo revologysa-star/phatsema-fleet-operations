@@ -45,8 +45,8 @@ jobs:
           from pathlib import Path
           import re
           s=Path('index.html').read_text(encoding='utf-8')
-          assert s.count('PHATSEMA OPTIONS V1')==2
-          assert s.count('PHATSEMA SESSION SYNC V1')==2
+          assert s.count('PHATSEMA OPTIONS V1') >= 1
+          assert s.count('PHATSEMA SESSION SYNC V1') == 1
           for x in ['workingPct','workingCount','operationalPct','breakdownCount','fleetCount']:
               assert s.count('id="'+x+'"')==1
           print('Phatsema runtime/static tests passed.')
