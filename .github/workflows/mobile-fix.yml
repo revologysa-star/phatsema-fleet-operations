@@ -1,8 +1,0 @@
-name: Apply mobile layout fix (disabled)
-on:
-  workflow_dispatch:
-jobs:
-  disabled:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Legacy mobile patch workflow disabled; mobile CSS is already in index.html."
