@@ -1,4 +1,4 @@
-name: Deploy Phatsema to GitHub Pages
+name: Validate Phatsema static package
 
 on:
   push:
@@ -7,12 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -21,27 +15,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare static site
+      - name: Validate frontend package
+        shell: bash
         run: |
-          mkdir -p _site
-          cp index.html _site/index.html
-          cp app.js _site/app.js
-          cp styles.css _site/styles.css
-          if [ -f 404.html ]; then cp 404.html _site/404.html; fi
-          if [ -d assets ]; then cp -R assets _site/assets; fi
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          set -e
+          test -f index.html
+          test -f app.js
+          test -f styles.css
+          grep -q 'src="./app.js"' index.html
+          grep -q 'href="./styles.css"' index.html
+          grep -q 'select option' styles.css
+          grep -q 'function addMachine' app.js
+          grep -q 'function addBreakdown' app.js
+          grep -q 'function addService' app.js
+          grep -q 'function status' app.js
+          grep -q 'function repair' app.js
+          grep -q 'function load' app.js
+          echo "Phatsema frontend package validation passed"
