@@ -25,6 +25,8 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/index.html
+          cp app.js _site/app.js
+          cp styles.css _site/styles.css
           if [ -f 404.html ]; then cp 404.html _site/404.html; fi
           if [ -d assets ]; then cp -R assets _site/assets; fi
 
