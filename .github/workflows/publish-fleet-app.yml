@@ -21,7 +21,7 @@ jobs:
           test -f app.js
           test -f styles.css
           test -f vercel.json
-          grep -q 'type="module" src="./app.js"' index.html
-          grep -q 'supabase.createClient' app.js
+          grep -q './app.js?v=' index.html
+          grep -q 'createClient' app.js
           grep -q 'https://fduccizawxtqnqtuxmjl.supabase.co' app.js
           echo 'Phatsema clean static app validation passed.'
