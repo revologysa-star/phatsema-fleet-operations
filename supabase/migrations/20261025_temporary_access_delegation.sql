@@ -168,7 +168,7 @@ begin
 
   return r;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.correct_machine_hours(p_machine_id uuid, p_new_hours numeric, p_expected_hours numeric, p_reason text)
@@ -246,7 +246,7 @@ begin
   );
   return corrected;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.sync_machine_hours_before_write()
@@ -303,7 +303,7 @@ begin
   else new.last_hours_at := coalesce(new.last_hours_at,old.last_hours_at,now()); end if;
   return new;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_machine(p_name text, p_fleet_id text, p_model text, p_site text, p_hours numeric, p_status text, p_service_interval_hours numeric, p_service_warning_hours numeric)
@@ -320,7 +320,7 @@ begin
  values(trim(p_name),trim(p_fleet_id),coalesce(p_model,''),coalesce(p_site,''),coalesce(p_hours,0),p_status::public.machine_status,coalesce(p_service_interval_hours,500),coalesce(p_service_warning_hours,50),true,now(),now()) returning * into r;
  insert into public.audit_log(actor_id,action,entity_type,entity_id,details) values(auth.uid(),'create_machine','machine',r.id,jsonb_build_object('fleet_id',r.fleet_id,'status',r.status));
  return r;
-end; $function$
+end; $function$;
 
 
 CREATE OR REPLACE FUNCTION public.update_machine(p_machine_id uuid, p_name text, p_fleet_id text, p_model text, p_site text, p_hours numeric, p_status text, p_service_interval_hours numeric, p_service_warning_hours numeric)
@@ -339,7 +339,7 @@ begin
  update public.machines set name=trim(p_name),fleet_id=trim(p_fleet_id),model=coalesce(p_model,''),site=coalesce(p_site,''),hours=coalesce(p_hours,old.hours),status=p_status::public.machine_status,service_interval_hours=coalesce(p_service_interval_hours,old.service_interval_hours),service_warning_hours=coalesce(p_service_warning_hours,old.service_warning_hours),last_confirmed_at=now() where id=p_machine_id returning * into r;
  insert into public.audit_log(actor_id,action,entity_type,entity_id,details) values(auth.uid(),'update_machine','machine',r.id,jsonb_build_object('before_status',old.status,'after_status',r.status,'before_hours',old.hours,'after_hours',r.hours));
  return r;
-end; $function$
+end; $function$;
 
 
 CREATE OR REPLACE FUNCTION public.retire_machine(p_machine_id uuid)
@@ -355,7 +355,7 @@ begin
  if not found then raise exception 'Active machine not found'; end if;
  insert into public.audit_log(actor_id,action,entity_type,entity_id,details) values(auth.uid(),'retire_machine','machine',r.id,'{}');
  return r;
-end; $function$
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.set_machine_status(p_machine_id uuid, p_status text, p_reason text DEFAULT NULL::text)
  RETURNS void
@@ -407,6 +407,6 @@ begin
   values(auth.uid(),'machine_status_changed','machine',p_machine_id,
          jsonb_build_object('from',old_status,'to',p_status,'reason',p_reason));
 end;
-$function$
+$function$;
 
 notify pgrst, 'reload schema';
