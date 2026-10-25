@@ -14,6 +14,9 @@ create table if not exists public.temporary_access_grants (
 create index if not exists temporary_access_user_lookup
  on public.temporary_access_grants(user_id, permission, expires_at)
  where revoked_at is null;
+create unique index if not exists temporary_access_one_unrevoked_per_scope
+ on public.temporary_access_grants(user_id,permission)
+ where revoked_at is null;
 alter table public.temporary_access_grants enable row level security;
 revoke all on table public.temporary_access_grants from public, anon, authenticated;
 grant select on table public.temporary_access_grants to authenticated;
