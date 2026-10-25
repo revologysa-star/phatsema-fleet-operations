@@ -187,3 +187,26 @@ async function refreshProductionClocks(){
   finally{productionClockRefreshing=false}
 }
 setInterval(refreshProductionClocks,15000);
+
+let accessRefreshPending=false;
+// Grant/revoke changes become visible to signed-in employees without a page reload.
+// Server-side permissions always take effect immediately, independent of this UI poll.
+async function refreshTemporaryAccess(){
+ if(accessRefreshPending||!db||!S.user||document.hidden)return;
+ accessRefreshPending=true;
+ try{
+   const {data,error}=await db.from("temporary_access_grants")
+     .select("id,user_id,permission,granted_at,expires_at,revoked_at,granted_by,reason");
+   if(error)return;
+   const prior=JSON.stringify((S.grants||[]).map(g=>[g.id,g.revoked_at,g.expires_at]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
+   const current=JSON.stringify((data||[]).map(g=>[g.id,g.revoked_at,g.expires_at]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
+   const wasReady=S.accessReady;
+   S.grants=data||[];
+   S.accessReady=true;
+   if(prior!==current||!wasReady)render();
+   else if(S.view==="people"&&realHead())render();
+ }catch(_error){/* permissions remain enforced by Supabase even when temporarily offline */}
+ finally{accessRefreshPending=false}
+}
+setInterval(refreshTemporaryAccess,20000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshTemporaryAccess()});
