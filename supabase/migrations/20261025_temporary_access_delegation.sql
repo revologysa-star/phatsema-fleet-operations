@@ -357,4 +357,56 @@ begin
  return r;
 end; $function$
 
+CREATE OR REPLACE FUNCTION public.set_machine_status(p_machine_id uuid, p_status text, p_reason text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r text;
+  old_status text;
+begin
+  select role::text into r from public.profiles where id=auth.uid() and active=true;
+  if r is null then raise exception 'Not authenticated'; end if;
+  if p_status not in ('working','available','breakdown','maintenance','offline') then
+    raise exception 'Invalid machine status';
+  end if;
+  if r not in ('assistant_mechanic','foreman','operations_manager','head_of_operations') and not public.has_temporary_permission('manage_fleet') then
+    raise exception 'Permission denied';
+  end if;
+
+  select status::text into old_status
+  from public.machines
+  where id=p_machine_id and active=true
+  for update;
+
+  if old_status is null then raise exception 'Machine not found'; end if;
+
+  update public.machines
+     set status=p_status::machine_status,
+         last_confirmed_at=now(),
+         breakdown_started_at=case
+           when p_status='breakdown' then coalesce(breakdown_started_at,now())
+           else null
+         end,
+         updated_at=now()
+   where id=p_machine_id;
+
+  if p_status='working' and old_status='breakdown' then
+    update public.breakdowns
+       set resolved_at=coalesce(resolved_at,now()),
+           downtime_minutes=greatest(0,floor(extract(epoch from (coalesce(resolved_at,now())-started_at))/60))::int,
+           repair_completed_at=coalesce(repair_completed_at,now()),
+           repair_completed_by=coalesce(repair_completed_by,auth.uid()),
+           repair_notes=coalesce(repair_notes,p_reason)
+     where machine_id=p_machine_id and resolved_at is null;
+  end if;
+
+  insert into public.audit_log(actor_id,action,entity_type,entity_id,details)
+  values(auth.uid(),'machine_status_changed','machine',p_machine_id,
+         jsonb_build_object('from',old_status,'to',p_status,'reason',p_reason));
+end;
+$function$
+
 notify pgrst, 'reload schema';
