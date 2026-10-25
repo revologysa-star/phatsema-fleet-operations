@@ -20,7 +20,13 @@ grant select on table public.temporary_access_grants to authenticated;
 drop policy if exists temporary_access_self_or_head_read on public.temporary_access_grants;
 create policy temporary_access_self_or_head_read on public.temporary_access_grants
  for select to authenticated
- using (user_id = (select auth.uid()) or public.is_head_of_operations());
+ using (
+  user_id = (select auth.uid())
+  or exists (
+    select 1 from public.profiles p
+    where p.id = (select auth.uid()) and p.active and p.role::text = 'head_of_operations'
+  )
+);
 
 create or replace function public.has_temporary_permission(p_permission text)
 returns boolean language sql stable security definer set search_path = ''
