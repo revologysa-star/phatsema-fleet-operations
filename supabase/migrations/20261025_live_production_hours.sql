@@ -1,6 +1,9 @@
 -- Additive timer: machine.hours remains the actual meter reading.
 alter table public.machines add column if not exists production_seconds numeric not null default 0;
 alter table public.machines add column if not exists production_started_at timestamptz;
+-- Start at deployment; no retroactive hours are assumed.
+update public.machines set production_started_at = statement_timestamp()
+where active and status::text = 'working' and production_started_at is null;
 create or replace function public.machine_production_clock_transition()
 returns trigger language plpgsql set search_path = public as $$
 declare t timestamptz := statement_timestamp();
@@ -23,6 +26,3 @@ drop trigger if exists machines_production_clock_transition on public.machines;
 create trigger machines_production_clock_transition
 before insert or update on public.machines
 for each row execute function public.machine_production_clock_transition();
--- Start at deployment; no retroactive hours are assumed.
-update public.machines set production_started_at = statement_timestamp()
-where active and status::text = 'working' and production_started_at is null;
