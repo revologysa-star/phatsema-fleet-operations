@@ -144,3 +144,6 @@ revoke all on function public.correct_machine_hours(uuid,numeric,numeric,text)
 from public, anon, authenticated;
 grant execute on function public.correct_machine_hours(uuid,numeric,numeric,text)
 to authenticated;
+
+-- Make the new authorized RPC visible to Supabase Data API.
+notify pgrst, 'reload schema';
