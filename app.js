@@ -118,11 +118,105 @@ function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b
    return '<tr><td data-label="Name"><strong>'+esc(p.full_name||((p.first_name||"")+" "+(p.surname||"")).trim()||p.username)+'</strong></td><td data-label="Username">'+esc(p.username||"—")+'</td><td data-label="Role">'+esc(role)+'</td><td data-label="Status">'+(p.active?"Active":"Disabled")+'</td>'+
     (isHead?'<td data-label="Temporary access"><div class="access-pills">'+chips+'</div></td><td data-label="Actions">'+action+'</td>':"")+'</tr>';
  }).join("");
- return '<div class="page-head"><div><h1>People</h1><div class="muted">Users, roles'+(isHead?' and temporary task access':"")+'</div></div><button id="peopleRefresh" class="secondary" type="button">Refresh</button></div>'+
+ return '<div class="page-head"><div><h1>People</h1><div class="muted">Employees, roles'+(isHead?' and temporary task access':"")+' · '+(S.people||[]).length+' registered</div></div>'+ '<div class="people-actions">'+(isHead?'<button id="addEmployee" class="primary" type="button">＋ Add employee</button>':'')+'<button id="peopleRefresh" class="secondary" type="button">↻ Refresh</button></div></div>'+
   (isHead?'<div class="panel access-help"><h3>Temporary access delegation</h3><p>Choose exactly what another employee may do while you are unavailable. Their normal role stays unchanged. Access expires automatically and you can revoke it immediately.</p><p class="muted">Only the Head of Operations can grant or revoke access. Access to users, roles and permanent permissions cannot be delegated here.</p></div>':"")+
   (isHead&&!S.accessReady?'<div class="notice">Temporary access controls are unavailable. Refresh the page to retry; no permission changes can be made.</div>':"")+
   '<div class="panel table-wrap people-table-wrap"><table class="table people-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th>'+
   (isHead?'<th>Temporary access</th><th>Actions</th>':"")+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function addEmployee(){
+  if(!realHead()){toast("Only Head of Operations can add employees.",true);return}
+  const html='<div class="employee-form">'+
+    '<p class="muted">Add an employee and choose their role. Head of Operations access is not assigned through this form.</p>'+
+    '<div class="form-grid">'+
+    '<div><label for="newFirst">First name</label><input id="newFirst" name="first_name" maxlength="80" required></div>'+
+    '<div><label for="newSurname">Surname</label><input id="newSurname" name="surname" maxlength="80" required></div>'+
+    '<div><label for="newUsername">Username</label><input id="newUsername" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,31}" autocapitalize="off" autocomplete="off" placeholder="e.g. thabo.m" required></div>'+
+    '<div><label for="newEmail">Employee email</label><input id="newEmail" name="email" type="email" autocomplete="off" maxlength="254" required></div>'+
+    '<div><label for="newWhatsapp">WhatsApp (optional)</label><input id="newWhatsapp" name="whatsapp_number" type="tel" maxlength="25" placeholder="+27 82 123 4567"></div>'+
+    '<div><label for="newRole">Employee role</label><select id="newRole" name="role" required>'+
+    '<option value="assistant_mechanic">Assistant / Mechanic</option>'+
+    '<option value="foreman">Foreman</option>'+
+    '<option value="operations_manager">Operations Manager</option></select></div></div>'+
+    '<div class="employee-method"><label for="newMode">Account setup</label>'+
+    '<select id="newMode" name="mode"><option value="invite">Email invitation (recommended)</option><option value="temporary_password">Temporary password</option></select>'+
+    '<p class="muted" id="newModeHelp">The employee receives an invitation and sets their own password.</p></div>'+
+    '<div class="employee-temp hidden" id="newPasswordFields"><label for="newPassword">Temporary password</label>'+
+    '<div class="employee-password-row"><input id="newPassword" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password">'+
+    '<button id="newGenerate" type="button" class="secondary">Generate</button>'+
+    '<button id="newReveal" type="button" class="secondary">Show</button></div>'+
+    '<p class="muted">Share this password privately and ask the employee to change it.</p></div></div>';
+  modal("Add employee",html,async form=>{
+    if(!realHead())throw new Error("Only Head of Operations can add employees.");
+    const first=String(form.get("first_name")||"").trim();
+    const surname=String(form.get("surname")||"").trim();
+    const email=String(form.get("email")||"").trim().toLowerCase();
+    const username=String(form.get("username")||"").trim().toLowerCase();
+    const role=String(form.get("role")||"");
+    const mode=String(form.get("mode")||"invite");
+    const password=String(form.get("password")||"");
+    const whatsapp=String(form.get("whatsapp_number")||"").trim();
+    if(!first||!surname)throw new Error("Enter a first name and surname.");
+    if(!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username))throw new Error("Username must be 3–32 characters.");
+    if(!["assistant_mechanic","foreman","operations_manager"].includes(role))throw new Error("Select a valid employee role.");
+    if(!["invite","temporary_password"].includes(mode))throw new Error("Invalid account setup method.");
+    if(mode==="temporary_password"&&password.length<12)throw new Error("Temporary password must be at least 12 characters.");
+    const body={first_name:first,surname,email,username,role,mode,whatsapp_number:whatsapp};
+    if(mode==="temporary_password")body.password=password;
+    const {data,error}=await db.functions.invoke("employee-management-v1",{body});
+    if(error){
+      let message=error.message||"Employee creation failed.";
+      if(error.context&&typeof error.context.json==="function"){
+        try{const details=await error.context.json();message=details.error||message}catch(_){}
+      }
+      throw new Error(message);
+    }
+    if(!data?.ok)throw new Error(data?.error||"Employee creation failed.");
+    await load();
+    showEmployeeCreated({...data,first_name:first,surname,password:mode==="temporary_password"?password:""});
+  });
+  const mode=$("newMode"),fields=$("newPasswordFields"),password=$("newPassword"),help=$("newModeHelp");
+  const sync=()=>{
+    const temp=mode.value==="temporary_password";
+    fields.classList.toggle("hidden",!temp);
+    password.required=temp;
+    help.textContent=temp?"The employee can sign in immediately. Share their temporary password privately.":"The employee receives an invitation and sets their own password.";
+    const submit=$("mf")?.querySelector('button[type="submit"]');
+    if(submit)submit.textContent=temp?"Create employee":"Send invitation";
+  };
+  mode.onchange=sync;sync();
+  $("newGenerate").onclick=()=>{
+    const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%&";
+    const bytes=crypto.getRandomValues(new Uint8Array(20));
+    password.value=Array.from(bytes,b=>alphabet[b%alphabet.length]).join("");
+    password.type="text";$("newReveal").textContent="Hide";
+  };
+  $("newReveal").onclick=()=>{
+    const visible=password.type==="text";
+    password.type=visible?"password":"text";
+    $("newReveal").textContent=visible?"Show":"Hide";
+  };
+}
+function showEmployeeCreated(employee){
+  const invited=employee.mode==="invite";
+  const details=invited
+    ?'<p class="muted">The employee should check their email (including spam), accept the invitation and create a password. Delivery depends on Supabase email settings.</p>'
+    :'<p class="muted">Share the temporary password privately. After signing in, the employee can change it under Guide → Change my password. It will not be shown again after closing this window.</p>'+
+     '<label for="employeeCreatedPassword">Temporary password</label>'+
+     '<div class="employee-password-row"><input type="text" id="employeeCreatedPassword" value="'+esc(employee.password)+'" readonly>'+
+     '<button id="employeeCopyPassword" class="secondary" type="button">Copy</button></div>';
+  $("modalRoot").innerHTML='<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="employeeCreatedTitle">'+
+    '<div class="employee-success-mark">✓</div><h2 id="employeeCreatedTitle">'+(invited?"Invitation requested":"Employee created")+'</h2>'+
+    '<p><strong>'+esc(employee.first_name+" "+employee.surname)+'</strong></p>'+
+    '<p>Username: <strong>'+esc(employee.username)+'</strong></p>'+
+    '<p>Email: <strong>'+esc(employee.email)+'</strong></p>'+
+    details+'<div class="modal-actions"><button id="employeeCreatedDone" class="primary" type="button">Done</button></div></div></div>';
+  $("employeeCreatedDone").onclick=()=>$("modalRoot").innerHTML="";
+  if(!invited)$("employeeCopyPassword").onclick=async()=>{
+    try{await navigator.clipboard.writeText(employee.password);toast("Password copied")}
+    catch(_){$("employeeCreatedPassword").select();toast("Select and copy the password manually.",true)}
+  };
 }
 function manageAccess(userId){
  if(!realHead()||!S.accessReady)return;
@@ -181,6 +275,8 @@ function settings(){let g=k=>S.settings.find(x=>x.key===k)?.value,enabled=g("wha
  '<section class="panel"><h2>Set next service</h2><p>Head of Operations or an employee with temporary <strong>Set Next Service</strong> access can adjust due hours or the due date. This does not modify Current Hours.</p></section>'+
  '<section class="panel"><h2>Correct machine hours</h2><p>The Head of Operations or a temporarily authorized employee can correct a meter reading up or down and must provide a reason. Each correction is recorded in Audit.</p></section>'+
  '<section class="panel"><h2>Temporary access</h2><p>The Head opens <strong>People → Manage access</strong>, selects the permissions, sets an expiry and records a reason. Access can be revoked immediately and otherwise ends automatically at expiry. Permanent roles remain unchanged.</p></section>'+
+ '<section class="panel"><h2>Employee onboarding</h2><p>Head of Operations: open <strong>People → Add employee</strong>, choose the role, and invite by email or create a temporary password. Invitations let employees choose their own password. Temporary passwords must be shared privately.</p></section>'+
+ '<section class="panel"><h2>Your password</h2><p>Change the temporary password after signing in. Use a unique password of at least 12 characters.</p><button type="button" class="primary" id="changeMyPassword">Change my password</button></section>'+
  '</div>';
 }
 function getMachine(id){return S.m.find(x=>x.id===id)?.name||"Unknown"}function modal(title,body,fn){
@@ -285,8 +381,8 @@ function bind(){
   };
  });
  if($("quickBreakdown"))$("quickBreakdown").onclick=addBreakdown;
- if($("quickService"))$("quickService").onclick=addService;
- if($("peopleRefresh"))$("peopleRefresh").onclick=load;
+ if($("quickService"))$("quickService").onclick=addService;if($("changeMyPassword"))$("changeMyPassword").onclick=()=>showPasswordReset(false);
+ if($("peopleRefresh"))$("peopleRefresh").onclick=load;if($("addEmployee"))$("addEmployee").onclick=addEmployee;
  document.querySelectorAll(".manageAccess").forEach(element=>element.onclick=()=>manageAccess(element.dataset.id));
  if($("addM"))$("addM").onclick=addMachine;
  if($("addB"))$("addB").onclick=addBreakdown;
@@ -358,10 +454,10 @@ let resumingUser=null;
 async function login(e){if(e&&e.preventDefault)e.preventDefault();let btn=$("loginBtn"),msg=$("loginMsg");if(!db){if(msg)msg.textContent="Secure login is still loading. Please wait a moment and try again.";return}let email=$("loginEmail")?.value.trim()||"",password=$("loginPassword")?.value||"";if(!email||!password){if(msg)msg.textContent="Enter your email and password.";return}if(btn){btn.disabled=true;btn.textContent="Signing in…"}if(msg){msg.textContent="Connecting to Phatsema…";msg.classList.remove("error")}try{let result=await Promise.race([db.auth.signInWithPassword({email,password}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000))]);let{data,error}=result;if(error){if(msg)msg.textContent=error.message;return}if(data?.user){if(msg)msg.textContent="Login successful. Loading your fleet…";await resume(data.user)}else if(msg)msg.textContent="Login did not return a user session. Please try again."}catch(err){if(msg)msg.textContent=err?.message||String(err);console.error("Phatsema login error",err)}finally{if(btn){btn.disabled=false;btn.textContent="Log in"}}}
 async function resume(user){if(resumingUser===user.id)return;resumingUser=user.id;try{S.user=user;let{data,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();if(error){$("loginMsg").textContent="Profile lookup failed: "+error.message;return}if(!data){await db.auth.signOut();$("loginMsg").textContent="No Phatsema profile exists for this account.";return}S.p=data;$("userBadge").textContent=(S.p.full_name||user.email)+" · "+S.p.role;$("login").classList.add("hidden");$("app").classList.remove("hidden");try{await load()}catch(err){showFatal("Load failed: "+(err.message||String(err)))}}finally{resumingUser=null}}
 function showRecovery(){return showPasswordReset()}
-function showPasswordReset(){modal("Set a new password",'<label>New password</label><input name="password" type="password" minlength="8" autocomplete="new-password" required><label>Confirm password</label><input name="confirm" type="password" minlength="8" autocomplete="new-password" required><p class="muted">Use at least 8 characters.</p>',async form=>{let password=String(form.get("password")||""),confirm=String(form.get("confirm")||"");if(password.length<8)throw new Error("Password must be at least 8 characters.");if(password!==confirm)throw new Error("Passwords do not match.");let{error}=await db.auth.updateUser({password});if(error)throw error;$("modalRoot").innerHTML="";await db.auth.signOut();$("login").classList.remove("hidden");$("app").classList.add("hidden");$("loginMsg").textContent="Password changed successfully. You can now log in with your new password."})}
+function showPasswordReset(invited=false){modal(invited?"Set your Phatsema password":"Set a new password",'<label>New password</label><input name="password" type="password" minlength="8" autocomplete="new-password" required><label>Confirm password</label><input name="confirm" type="password" minlength="8" autocomplete="new-password" required><p class="muted">Use at least 8 characters.</p>',async form=>{let password=String(form.get("password")||""),confirm=String(form.get("confirm")||"");if(password.length<8)throw new Error("Password must be at least 8 characters.");if(password!==confirm)throw new Error("Passwords do not match.");let{error}=await db.auth.updateUser({password});if(error)throw error;$("modalRoot").innerHTML="";await db.auth.signOut();$("login").classList.remove("hidden");$("app").classList.add("hidden");$("loginMsg").textContent="Password changed successfully. You can now log in with your new password."})}
 function recoveryMessage(error){let m=error?.message||String(error||"");if(/rate limit|429|over_email_send_rate_limit/i.test(m))return"Password reset emails are temporarily rate-limited. Please wait a while before trying again.";return m}
 async function requestPasswordReset(){let e=$("loginEmail").value.trim(),msg=$("loginMsg"),btn=$("forgotBtn");if(!e){msg.textContent="Enter your email first.";return}let key="phatsema-reset-last-"+e.toLowerCase(),last=Number(localStorage.getItem(key)||0),wait=Math.ceil((60000-(Date.now()-last))/1000);if(wait>0){msg.textContent=`Please wait ${wait}s before requesting another reset email.`;return}if(btn)btn.disabled=true;msg.textContent="Sending password reset email…";let{error}=await db.auth.resetPasswordForEmail(e,{redirectTo:new URL(location.href).href.split("#")[0]});if(error){msg.textContent=recoveryMessage(error);if(btn)btn.disabled=false;return}localStorage.setItem(key,String(Date.now()));msg.textContent="Password reset email sent. Check your inbox and spam folder.";setTimeout(()=>{if(btn)btn.disabled=false},60000)}
-function boot(){initTheme();const themeBtn=$("themeBtn");if(themeBtn){themeBtn.onclick=toggleTheme}if(!initSupabase())return;let f=$("loginForm");if(f)f.onsubmit=login;let fb=$("forgotBtn");if(fb)fb.onclick=requestPasswordReset;let lo=$("logoutBtn");if(lo)lo.onclick=async()=>{await db.auth.signOut();location.reload()};db.auth.onAuthStateChange(async(event,session)=>{if(event==="PASSWORD_RECOVERY"){showRecovery();return}if(event==="SIGNED_OUT"){S.user=null;S.p=null;$("login")?.classList.remove("hidden");$("app")?.classList.add("hidden");return}if(event==="SIGNED_IN"&&session?.user){await resume(session.user)}});db.auth.getSession().then(async({data})=>{if(location.hash.includes("type=recovery")){showRecovery();return}if(data?.session?.user)await resume(data.session.user);else $("login")?.classList.remove("hidden")}).catch(err=>showFatal(err.message||String(err)))}
+function boot(){const invited=/(?:[?#&])type=invite(?:[&#]|$)/.test(location.href);let inviteShown=false;const openInvite=()=>{if(!inviteShown){inviteShown=true;showPasswordReset(true)}};initTheme();const themeBtn=$("themeBtn");if(themeBtn){themeBtn.onclick=toggleTheme}if(!initSupabase())return;let f=$("loginForm");if(f)f.onsubmit=login;let fb=$("forgotBtn");if(fb)fb.onclick=requestPasswordReset;let lo=$("logoutBtn");if(lo)lo.onclick=async()=>{await db.auth.signOut();location.reload()};db.auth.onAuthStateChange(async(event,session)=>{if(event==="PASSWORD_RECOVERY"){showRecovery();return}if(event==="SIGNED_OUT"){S.user=null;S.p=null;$("login")?.classList.remove("hidden");$("app")?.classList.add("hidden");return}if(event==="SIGNED_IN"&&session?.user){if(invited){openInvite();return}await resume(session.user)}});db.auth.getSession().then(async({data})=>{if(location.hash.includes("type=recovery")){showRecovery();return}if(data?.session?.user){if(invited)openInvite();else await resume(data.session.user)}else $("login")?.classList.remove("hidden")}).catch(err=>showFatal(err.message||String(err)))}
 window.addEventListener("error",e=>showFatal(e.message||"Unexpected error"));
 window.addEventListener("unhandledrejection",e=>showFatal(e.reason?.message||String(e.reason||"Unhandled promise rejection")));
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();

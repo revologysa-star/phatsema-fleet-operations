@@ -25,4 +25,4 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check app.js
       - name: Run fleet regression tests
-        run: node --test tests/quality.test.cjs
+        run: node --test tests/*.test.cjs

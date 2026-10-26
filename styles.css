@@ -358,3 +358,32 @@ body.dark .ops-service-count.soon{color:#f3c05f}
  .ops-kpi,.ops-quick-action{transition:none}
  .ops-kpi:hover,.ops-quick-action:hover{transform:none}
 }
+
+
+/* Employee onboarding: compact, legible and usable on phones in both themes. */
+.people-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.people-actions button{white-space:nowrap}
+.employee-form{display:grid;gap:13px}
+.employee-form .form-grid{gap:10px 14px}
+.employee-form label{margin:5px 0 6px}
+.employee-form input,.employee-form select{min-width:0}
+.employee-form>p{margin:0;line-height:1.6}
+.employee-form .muted{font-size:12px;line-height:1.55}
+.employee-method,.employee-temp{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface2)}
+.employee-method p,.employee-temp p{margin:8px 0 0}
+.employee-password-row{display:flex;align-items:stretch;gap:8px;min-width:0}
+.employee-password-row input{flex:1;min-width:0}
+.employee-password-row button{flex:0 0 auto;padding:10px 12px}
+.employee-success-mark{display:grid;place-items:center;background:#1ba67621;color:var(--green);font-weight:950;font-size:28px;width:52px;height:52px;border-radius:50%;margin-bottom:13px}
+body.dark .employee-success-mark{color:#78dfb4}
+body.dark .employee-method,body.dark .employee-temp{background:#ffffff06}
+body.dark .employee-form input,body.dark .employee-form select{color:var(--text)}
+@media(max-width:650px){
+ .people-actions{width:100%}
+ .people-actions button{flex:1}
+ .employee-form .form-grid{grid-template-columns:1fr}
+ .employee-password-row{flex-wrap:wrap}
+ .employee-password-row input{flex:1 1 100%}
+ .employee-password-row button{flex:1 1 auto}
+ .employee-form .muted{font-size:12px}
+}
