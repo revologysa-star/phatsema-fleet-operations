@@ -127,7 +127,7 @@ test("form submit handler prevents duplicate saves",async()=>{
  let release;
  const pending=new Promise(resolve=>{release=resolve});
  env.context.testSave=async()=>{calls++;await pending};
- env.run('modal("Test","<input name=\"reason\">",testSave)');
+ env.run("modal('Test','<input name=\\\"reason\\\">',testSave)");
  const ev={preventDefault(){}};
  const p1=form.onsubmit(ev),p2=form.onsubmit(ev);
  assert.equal(calls,1);
