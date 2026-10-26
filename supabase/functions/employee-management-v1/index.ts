@@ -1,6 +1,6 @@
 // Phatsema employee onboarding. This endpoint is deliberately Head-only.
 // Supabase privileged keys stay on the server; the browser sends only its user JWT.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 
 const ALLOWED_ROLES = new Set(["assistant_mechanic", "foreman", "operations_manager"]);
 const APP_URL = "https://phatsema-fleet-operations-azs9.vercel.app/";
