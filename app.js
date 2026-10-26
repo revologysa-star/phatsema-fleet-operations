@@ -434,12 +434,30 @@ function manageAccess(userId){
    }catch(err){button.disabled=false;toast(err.message||String(err),true)}
  });
 }
-function settings(){let g=k=>S.settings.find(x=>x.key===k)?.value,enabled=g("whatsapp_alerts_enabled")!==false;return '<div class="page-head"><div><h1>Settings</h1><div class="muted">Fleet control & automatic service alerts</div></div><div>'+'<button id="save" class="primary">Save settings</button></div></div><div class="panel"><div class="form-grid"><div><label>Service interval (hours)</label><input id="si" type="number" min="1" value="'+esc(g("service_interval_hours")??500)+'"></div><div><label>WhatsApp alert threshold (hours before service)</label><input id="sw" type="number" min="0" value="'+esc(g("service_warning_hours")??50)+'"></div><div><label>WhatsApp recipient number</label><input id="wn" inputmode="tel" placeholder="e.g. 27821234567" value="'+esc(g("whatsapp_alert_number")??"")+'"></div><div><label>Automatic WhatsApp alerts</label><select id="we"><option value="true" '+(enabled?'selected':'')+'>Enabled</option><option value="false" '+(!enabled?'selected':'')+'>Disabled</option></select></div></div><p class="muted">When a machine reaches the configured warning threshold, Phatsema sends the service alert to the WhatsApp number entered above. The same machine will not be alerted again until a new service record starts the next service cycle.</p></div>'}function audit(){return '<div class="page-head"><div><h1>Audit log</h1><div class="muted">A clear history of changes and actions across the fleet</div></div><button id="ar" class="secondary">↻ Refresh</button></div><div class="audit-toolbar"><div class="audit-search"><span>⌕</span><input id="auditSearch" placeholder="Search audit history…"></div><select id="auditAction"><option value="">All actions</option></select><div class="audit-count" id="auditCount">Loading…</div></div><div id="aud" class="audit-list"><div class="audit-loading">Loading audit history…</div></div>'}function guide(){
+function settings(){let g=k=>S.settings.find(x=>x.key===k)?.value,enabled=g("whatsapp_alerts_enabled")!==false;return '<div class="page-head"><div><h1>Settings</h1><div class="muted">Fleet control & automatic service alerts</div></div><div>'+'<button id="save" class="primary">Save settings</button></div></div><div class="panel"><div class="form-grid"><div><label>Service interval (hours)</label><input id="si" type="number" min="1" value="'+esc(g("service_interval_hours")??500)+'"></div><div><label>WhatsApp alert threshold (hours before service)</label><input id="sw" type="number" min="0" value="'+esc(g("service_warning_hours")??50)+'"></div><div><label>WhatsApp recipient number</label><input id="wn" inputmode="tel" placeholder="e.g. 27821234567" value="'+esc(g("whatsapp_alert_number")??"")+'"></div><div><label>Automatic WhatsApp alerts</label><select id="we"><option value="true" '+(enabled?'selected':'')+'>Enabled</option><option value="false" '+(!enabled?'selected':'')+'>Disabled</option></select></div></div><p class="muted">When a machine reaches the configured warning threshold, Phatsema sends the service alert to the WhatsApp number entered above. The same machine will not be alerted again until a new service record starts the next service cycle.</p></div>'}function audit(){
+ const exportButtons=realHead()?
+  '<div class="audit-export-actions">'+
+   '<button id="auditExportCSV" class="primary" type="button">Download full audit log (CSV)</button>'+
+   '<button id="auditExportPDF" class="secondary" type="button">Print full report / Save PDF</button>'+
+  '</div>':'';
+ return '<section class="audit-page">'+
+ '<div class="page-head"><div><h1>Audit log</h1>'+
+ '<div class="muted">History of changes and actions across the fleet</div></div>'+
+ '<div class="audit-top-actions"><button id="ar" class="secondary" type="button">↻ Refresh</button>'+exportButtons+'</div></div>'+
+ (realHead()?'<p class="audit-export-info">The list below shows the latest 100 entries. Download Full Audit Log includes <strong>the entire available history</strong>, not just the displayed entries or search results.</p>':'')+
+ '<div id="auditExportStatus" role="status" aria-live="polite" class="audit-export-status"></div>'+
+ '<div class="audit-toolbar"><div class="audit-search"><span>⌕</span><input id="auditSearch" placeholder="Search the displayed 100 entries…"></div>'+
+ '<select id="auditAction"><option value="">All actions</option></select><div class="audit-count" id="auditCount">Loading…</div></div>'+
+ '<div id="aud" class="audit-list"><div class="audit-loading">Loading audit history…</div></div>'+
+ '<div id="auditPrintContainer" class="audit-print-container" aria-hidden="true"></div>'+
+ '</section>';
+}
+function guide(){
  return '<div class="page-head"><div><h1>Training guide</h1><p class="muted">A quick reference for the Phatsema team</p></div></div>'+
  '<div class="ops-training-grid">'+
  '<section class="panel"><h2>Reporting a breakdown</h2><p>Open <strong>Breakdowns → Report issue</strong>, choose the machine, describe the problem and assign a technician where appropriate. A machine marked Breakdown stops accumulating Live Production Time.</p></section>'+
  '<section class="panel"><h2>Repair completed</h2><p>The assigned technician or management uses <strong>Repair complete</strong>, adds repair notes and confirms whether the machine can return to Working. Otherwise it remains on Breakdown with a reason.</p></section><section class="panel"><h2>Breakdown photos and assignment</h2><p>Report issues with optional photo evidence, or use <strong>Attach photos</strong> later. A foreman or manager assigns or reassigns a technician.</p></section><section class="panel"><h2>Management reports</h2><p>Managers open <strong>Reports</strong>, choose a 7, 30 or 90-day window, download machine/breakdown/service CSV reports, or use <strong>Print / Save as PDF</strong>. Current fleet status is a snapshot, not historical availability.</p></section>'+
- '<section class="panel"><h2>Log service</h2><p>Select <strong>Service → Log service</strong>, provide the physical meter reading and the maintenance performed. Attach photos as evidence where available. Engine hours are separate from Live Production Time.</p></section>'+
+ '<section class="panel"><h2>Full audit export</h2><p>Only the Head of Operations can open <strong>Audit → Download full audit log (CSV)</strong> or <strong>Print full report / Save PDF</strong>. The export includes all recorded audit events, not just the most recent 100 visible in the Audit list.</p></section><section class="panel"><h2>Log service</h2><p>Select <strong>Service → Log service</strong>, provide the physical meter reading and the maintenance performed. Attach photos as evidence where available. Engine hours are separate from Live Production Time.</p></section>'+
  '<section class="panel"><h2>Set next service</h2><p>Head of Operations or an employee with temporary <strong>Set Next Service</strong> access can adjust due hours or the due date. This does not modify Current Hours.</p></section>'+
  '<section class="panel"><h2>Correct machine hours</h2><p>The Head of Operations or a temporarily authorized employee can correct a meter reading up or down and must provide a reason. Each correction is recorded in Audit.</p></section>'+
  '<section class="panel"><h2>Temporary access</h2><p>The Head opens <strong>People → Manage access</strong>, selects the permissions, sets an expiry and records a reason. Access can be revoked immediately and otherwise ends automatically at expiry. Permanent roles remain unchanged.</p></section>'+
@@ -570,6 +588,8 @@ function bind(){
  if($("addS"))$("addS").onclick=addService;
  if($("save"))$("save").onclick=saveSettings;
  if($("ar"))$("ar").onclick=loadAudit;
+ if($("auditExportCSV"))$("auditExportCSV").onclick=()=>exportFullAuditLog("csv");
+ if($("auditExportPDF"))$("auditExportPDF").onclick=()=>exportFullAuditLog("pdf");
  if($("reportPeriod"))$("reportPeriod").onchange=event=>{S.reportDays=Number(event.target.value)||30;render()};
  document.querySelectorAll(".reportExport").forEach(btn=>btn.onclick=exportFleetReport);
  if($("reportPrint"))$("reportPrint").onclick=()=>window.print();
@@ -752,6 +772,118 @@ function status(id){modal("Change status",'<label>Status</label><select name="st
  ready.onchange=update;update();
 }
 async function saveSettings(){for(let [key,value] of [["service_interval_hours",Number($("si").value)],["service_warning_hours",Number($("sw").value)],["whatsapp_alert_number",$("wn").value.trim()],["whatsapp_alerts_enabled",$("we").value==="true"]]){let {error}=await db.from("app_settings").upsert({key,value,updated_by:S.user.id},{onConflict:"key"});if(error){toast(error.message,true);return}}toast("Settings saved");load()}function auditLabel(a){return String(a||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+
+// Head-only audit export. Server checks the Head role again; this UI check
+// is not an authorization mechanism by itself.
+function auditExportCSV(rows){
+ return reportCSV([
+  ["Audit ID","Timestamp (ISO 8601)","Actor name","Actor role","Actor ID","Action","Entity type","Entity ID","Details (full JSON)"],
+  ...rows.map(r=>[r.id,r.created_at,r.actor_name||"System",r.actor_role||"",
+   r.actor_id||"",r.action||"",r.entity_type||"",r.entity_id||"",
+   JSON.stringify(r.details??{})])
+ ]);
+}
+function auditFullPrintHTML(rows,snapshot){
+ const count=Number(snapshot.entry_count)||0;
+ const generated=new Date().toLocaleString();
+ const tr=rows.map(r=>'<tr>'+
+   '<td>'+esc(r.id)+'</td><td>'+esc(r.created_at||"")+'</td>'+
+   '<td>'+esc(r.actor_name||"System")+'<small>'+esc(r.actor_role||"")+'</small></td>'+
+   '<td>'+esc(auditLabel(r.action||""))+'</td>'+
+   '<td>'+esc(r.entity_type||"")+'<small>'+esc(r.entity_id||"")+'</small></td>'+
+   '<td class="audit-print-details">'+esc(JSON.stringify(r.details??{}))+'</td>'+
+  '</tr>').join("");
+ return '<div class="audit-print-title"><h1>Phatsema Fleet Operations</h1>'+
+ '<h2>Complete audit log report</h2>'+
+ '<p>Confidential · Head of Operations · Generated '+esc(generated)+'</p>'+
+ '<p>Recorded entries: '+count+' · Snapshot through record #'+esc(snapshot.snapshot_max_id??0)+
+ ' · Includes all available history at the time of export.</p></div>'+
+ '<table class="audit-print-table"><thead><tr>'+
+ '<th>ID</th><th>Recorded at (UTC)</th><th>Employee</th><th>Action</th><th>Entity</th><th>Complete event details</th>'+
+ '</tr></thead><tbody>'+(tr||'<tr><td colspan="6">No audit records.</td></tr>')+
+ '</tbody></table>'+
+ '<p class="audit-print-footer">This report reflects system audit records at the snapshot time and is not independent verification of physical operations.</p>';
+}
+async function fetchCompleteAuditHistory(update){
+ if(!realHead())throw new Error("Only the Head of Operations can export the full audit log.");
+ const {data:meta,error:metaError}=await db.rpc("audit_export_snapshot");
+ if(metaError)throw metaError;
+ const snapshot=Array.isArray(meta)?meta[0]:meta;
+ if(!snapshot)throw new Error("Audit export metadata was not returned.");
+ const expected=Number(snapshot.entry_count),maximum=Number(snapshot.snapshot_max_id);
+ if(!Number.isSafeInteger(expected)||expected<0||!Number.isSafeInteger(maximum)||maximum<0)
+  throw new Error("Audit record totals could not be verified.");
+ const all=[],limit=500;
+ let last=0;
+ while(all.length<expected){
+  const {data,error}=await db.rpc("audit_export_page",{
+    p_snapshot_max_id:maximum,p_after_id:last,p_limit:limit
+  });
+  if(error)throw error;
+  const page=Array.isArray(data)?data:[];
+  if(!page.length)throw new Error("Audit export incomplete: records changed during download. Please retry.");
+  const next=Number(page[page.length-1].id);
+  if(!Number.isSafeInteger(next)||next<=last||next>maximum)
+   throw new Error("Audit export pagination returned an invalid record sequence.");
+  if(page.some((r,i)=>!Number.isSafeInteger(Number(r.id))||(i>0&&Number(r.id)<=Number(page[i-1].id))))
+   throw new Error("Audit records are not sorted correctly.");
+  all.push(...page);
+  if(all.length>expected)throw new Error("Audit export returned more entries than expected.");
+  last=next;
+  if(update)update("Loading full audit history: "+all.length+" / "+expected+" entries…");
+ }
+ if(all.length!==expected)
+  throw new Error("Audit export incomplete; no partial report was generated.");
+ return {rows:all,snapshot};
+}
+async function exportFullAuditLog(format){
+ if(!realHead())return toast("Head of Operations access required.",true);
+ if(format!=="csv"&&format!=="pdf")return toast("Unsupported audit report format.",true);
+ const buttons=[$("auditExportCSV"),$("auditExportPDF")].filter(Boolean);
+ if(buttons.some(b=>b.disabled))return;
+ const status=$("auditExportStatus");
+ const update=message=>{if(status)status.textContent=message};
+ buttons.forEach(b=>b.disabled=true);
+ update("Preparing full audit history…");
+ try{
+  const {rows,snapshot}=await fetchCompleteAuditHistory(update);
+  if(!realHead())throw new Error("The Head of Operations session is no longer active.");
+  if(format==="csv"){
+   const csv=auditExportCSV(rows);
+   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+   const url=URL.createObjectURL(blob);
+   const anchor=document.createElement("a");
+   anchor.style.display="none";
+   anchor.href=url;
+   anchor.download="phatsema-full-audit-log-"+new Date().toISOString().slice(0,10)+".csv";
+   document.body.appendChild(anchor);
+   try{anchor.click()}finally{
+    anchor.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+   }
+  }else{
+   const mount=$("auditPrintContainer");
+   if(!mount)throw new Error("Audit print view is unavailable.");
+   mount.innerHTML=auditFullPrintHTML(rows,snapshot);
+   update("Full report loaded: "+rows.length+" entries. Choose Save as PDF in the print dialog.");
+   window.print();
+  }
+  if(format==="csv")update("Full CSV export prepared: "+rows.length+" entries (complete available history).");
+  // A separate server-side audit event is created only after the report is prepared.
+  const {error:recordError}=await db.rpc("record_audit_export",{
+   p_format:format,p_record_count:rows.length,p_snapshot_max_id:Number(snapshot.snapshot_max_id)
+  });
+  if(recordError)toast("Report prepared, but audit export tracking failed: "+recordError.message,true);
+  else toast("Full audit report prepared with "+rows.length+" entries.");
+ }catch(err){
+  const message=err?.message||String(err);
+  update("Full audit export failed: "+message);
+  toast("Audit export failed: "+message,true);
+ }finally{
+  buttons.forEach(b=>b.disabled=false);
+ }
+}
+
 function auditActor(id){return S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.username||"System"}
 function auditMachine(x){return S.m.find(m=>m.id===x.entity_id)?.name||x.details?.after?.name||x.details?.before?.name||null}
 function auditDetail(x){let d=x.details||{};if(x.action==="temporary_access_granted"||x.action==="temporary_access_revoked")return accessLabel(d.permission||"access")+" · "+(x.action==="temporary_access_granted"?"Granted until "+(d.expires_at?fmt(d.expires_at):"expiry"):"Revoked")+(d.reason?" · Reason: "+d.reason:"");let from=d.from??d.before_status??d.before?.status,to=d.to??d.after_status??d.after?.status,h1=d.before_hours??d.before?.hours,h2=d.after_hours??d.after?.hours;if(x.action==="machine_hours_corrected")return "Current hours "+(d.before_hours??"—")+" → "+(d.after_hours??"—")+" · Reason: "+(d.reason||"not supplied");if(x.action==="machine_status_changed"&&from!==undefined)return "Status "+auditLabel(from)+" → "+auditLabel(to)+(d.reason?" · "+d.reason:"");if((x.action==="update_machine"||x.action==="machine_updated")&&(h1!==undefined||h2!==undefined||from!==undefined||to!==undefined)){let parts=[];if(h1!==undefined||h2!==undefined)parts.push("Hours "+(h1??"—")+" → "+(h2??"—"));if(from!==undefined||to!==undefined)parts.push("Status "+auditLabel(from??"—")+" → "+auditLabel(to??"—"));return parts.join(" · ")}let parts=[];Object.entries(d).forEach(([k,v])=>{if(k==="before"||k==="after"||v===null||v===undefined||v==="")return;let val=typeof v==="object"?JSON.stringify(v):String(v);parts.push(auditLabel(k)+": "+val)});return parts.join(" · ")||"Action recorded"}
