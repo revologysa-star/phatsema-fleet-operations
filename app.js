@@ -2,7 +2,7 @@ const SUPABASE_URL="https://fduccizawxtqnqtuxmjl.supabase.co",KEY="sb_publishabl
 
 function initTheme(){const saved=localStorage.getItem("phatsema-theme");const dark=saved==="dark";document.body.classList.toggle("dark",dark);const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
 function toggleTheme(){const dark=!document.body.classList.contains("dark");document.body.classList.toggle("dark",dark);localStorage.setItem("phatsema-theme",dark?"dark":"light");const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
-document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],people:[],settings:[],audit:[],grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
+document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
 realHead=()=>S.p?.active!==false&&S.p?.role==="head_of_operations",
 activeGrants=id=>(S.grants||[]).filter(g=>g.user_id===id&&!g.revoked_at&&Date.parse(g.expires_at)>Date.now()),
 hasDelegated=scope=>activeGrants(S.user?.id).some(g=>g.permission===scope),
@@ -14,7 +14,7 @@ name=id=>S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.us
 function showFatal(message){console.error(message);let e=$("loadErr");if(e)e.textContent="⚠ "+message;else if($("loginMsg"))$("loginMsg").textContent=message}
 function norm(s){return String(s||"").trim().toLowerCase()}
 function metrics(){let m=S.m||[],total=m.length,c=k=>m.filter(x=>norm(x.status)===k).length,working=c("working"),available=c("available"),breakdown=c("breakdown"),maintenance=c("maintenance"),offline=c("offline"),pct=n=>total?Math.round(n/total*1000)/10:0;return{total,working,available,breakdown,maintenance,offline,workingPct:pct(working),operationalPct:pct(working+available),availabilityPct:pct(total-breakdown)}}
-function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,guide:guide}[S.view]||dash)();bind()}
+function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["reports","Reports"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,reports:reports,guide:guide}[S.view]||dash)();bind()}
 function serviceSchedule(m){
  const current=Number(m.hours||0);
  const remaining=m.next_service_hours==null?null:Number(m.next_service_hours)-current;
@@ -312,12 +312,13 @@ async function load(){
   db.from("breakdowns").select("*").order("started_at",{ascending:false}),
   db.from("services").select("*").order("service_date",{ascending:false}),
   db.from("service_photos").select("*").order("created_at",{ascending:true}),
+  db.from("breakdown_photos").select("*").order("created_at",{ascending:true}),
   db.from("profiles").select("*").order("full_name"),
   db.from("app_settings").select("*"),
   db.from("machine_production_clocks").select("machine_id,accumulated_seconds,running_since"),
   db.from("temporary_access_grants").select("id,user_id,permission,granted_at,expires_at,revoked_at,granted_by,reason")
  ]);
- const [m,b,s,ph,pe,se,cl,gr]=results,failed=[];
+ const [m,b,s,ph,bph,pe,se,cl,gr]=results,failed=[];
  function rows(r,label,fallback){
    if(r.status!=="fulfilled"){failed.push(label+": "+(r.reason?.message||"connection failed"));return fallback}
    if(r.value.error){failed.push(label+": "+r.value.error.message);return fallback}
@@ -349,6 +350,17 @@ async function load(){
    S.photos=signed.filter(r=>r.status==="fulfilled").map(r=>r.value);
    const missed=signed.filter(r=>r.status==="rejected");
    if(missed.length)failed.push(missed.length+" service photo(s) unavailable");
+ }
+ const breakdownPhotoRows=rows(bph,"breakdown photos",null);
+ if(breakdownPhotoRows!==null){
+   const signed=await Promise.allSettled(breakdownPhotoRows.map(async photo=>{
+     const result=await db.storage.from("fleet-evidence").createSignedUrl(photo.storage_path,3600);
+     if(result.error)throw result.error;
+     return {...photo,url:result.data.signedUrl};
+   }));
+   S.breakdownPhotos=signed.filter(p=>p.status==="fulfilled").map(p=>p.value);
+   const failedPhotos=signed.filter(p=>p.status==="rejected");
+   if(failedPhotos.length)failed.push(failedPhotos.length+" breakdown photo(s) unavailable");
  }
  if(m.status==="fulfilled"&&!m.value.error)S.lastLoadedAt=new Date().toISOString();
  S.loadErrors=failed;
@@ -389,6 +401,9 @@ function bind(){
  if($("addS"))$("addS").onclick=addService;
  if($("save"))$("save").onclick=saveSettings;
  if($("ar"))$("ar").onclick=loadAudit;
+ if($("reportPeriod"))$("reportPeriod").onchange=event=>{S.reportDays=Number(event.target.value)||30;render()};
+ if($("reportExport"))$("reportExport").onclick=exportFleetReport;
+ if($("reportPrint"))$("reportPrint").onclick=()=>window.print();
  if($("auditSearch"))$("auditSearch").oninput=renderAudit;
  if($("auditAction"))$("auditAction").onchange=renderAudit;
  document.querySelectorAll(".editHours").forEach(element=>element.onclick=()=>editMachine(element.dataset.id));
@@ -396,6 +411,8 @@ function bind(){
  document.querySelectorAll(".st").forEach(element=>element.onclick=()=>status(element.dataset.id));
  document.querySelectorAll(".rm").forEach(element=>element.onclick=()=>removeMachine(element.dataset.id));
  document.querySelectorAll(".repair").forEach(element=>element.onclick=()=>repair(element.dataset.id));
+ document.querySelectorAll(".assignBreakdown").forEach(element=>element.onclick=()=>assignBreakdown(element.dataset.id));
+ document.querySelectorAll(".breakdownEvidence").forEach(element=>element.onclick=()=>attachBreakdownEvidence(element.dataset.id));
  if(S.view==="audit")loadAudit();
 }
 function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Name</label><input name="name" required></div><div><label>Fleet ID</label><input name="fleet_id" required></div><div><label>Model</label><input name="model"></div><div><label>Site</label><input name="site"></div><div><label>Hours</label><input name="hours" type="number" value="0"></div><div><label>Status</label><select name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',async f=>{let {error}=await db.rpc("create_machine",{p_name:f.get("name"),p_fleet_id:f.get("fleet_id"),p_model:f.get("model"),p_site:f.get("site"),p_hours:Number(f.get("hours")||0),p_status:f.get("status"),p_service_interval_hours:500,p_service_warning_hours:50});if(error)throw error;$("modalRoot").innerHTML="";toast("Machine added");load()})}function addBreakdown(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join(""),pe=S.people.filter(p=>p.active).map(p=>'<option value="'+p.id+'">'+esc(p.full_name||p.username)+" · "+esc(p.role)+"</option>").join("");modal("Report breakdown",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Problem</label><select name="reason"><option>Engine</option><option>Hydraulic</option><option>Electrical</option><option>Tyre / Track</option><option>Cooling system</option><option>Transmission</option><option>Other</option></select><label>Technician</label><select name="assigned_to"><option value="">Unassigned</option>'+pe+'</select><label>Notes</label><textarea name="notes" rows="4"></textarea>',async f=>{let {error}=await db.rpc("report_breakdown",{p_machine_id:f.get("machine_id"),p_reason:f.get("reason"),p_notes:f.get("notes"),p_assigned_to:f.get("assigned_to")||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Breakdown reported");load()})}function addService(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+Number(m.hours||0)+"h</option>").join("");modal("Log service",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Hour reading</label><input name="hours" type="number" min="0" step=".1" required><label>Work completed</label><textarea name="work" rows="4" required></textarea><label>Notes</label><textarea name="notes" rows="3"></textarea><label>Photos of work done <span class="muted">(optional)</span></label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple><div class="muted">Add up to 8 photos. These are stored with the service record.</div>',async f=>{let files=Array.from(f.getAll("photos")||[]).filter(x=>x&&x.size).slice(0,8);let {data,error}=await db.rpc("log_service",{p_machine_id:f.get("machine_id"),p_work_completed:f.get("work"),p_hour_reading:Number(f.get("hours")),p_notes:f.get("notes")});if(error)throw error;let serviceId=data?.id||data;if(!serviceId)throw new Error("Service was logged but no service ID was returned, so photos could not be attached.");for(let file of files){let safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_"),path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;let up=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;let ins=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});if(ins.error)throw ins.error}$("modalRoot").innerHTML="";toast(files.length?"Service logged with "+files.length+" photo"+(files.length===1?"":"s"):"Service logged");load()})}function editMachine(id){
