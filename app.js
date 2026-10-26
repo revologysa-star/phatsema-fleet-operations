@@ -118,7 +118,7 @@ function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b
    return '<tr><td data-label="Name"><strong>'+esc(p.full_name||((p.first_name||"")+" "+(p.surname||"")).trim()||p.username)+'</strong></td><td data-label="Username">'+esc(p.username||"—")+'</td><td data-label="Role">'+esc(role)+'</td><td data-label="Status">'+(p.active?"Active":"Disabled")+'</td>'+
     (isHead?'<td data-label="Temporary access"><div class="access-pills">'+chips+'</div></td><td data-label="Actions">'+action+'</td>':"")+'</tr>';
  }).join("");
- return '<div class="page-head"><div><h1>People</h1><div class="muted">Users, roles'+(isHead?' and temporary task access':"")+'</div></div><button id="peopleRefresh" class="secondary" type="button">Refresh</button></div>'+
+ return '<div class="page-head"><div><h1>People</h1><div class="muted">Employees, roles'+(isHead?' and temporary task access':"")+' · '+(S.people||[]).length+' registered</div></div>'+ '<div class="people-actions">'+(isHead?'<button id="addEmployee" class="primary" type="button">＋ Add employee</button>':'')+'<button id="peopleRefresh" class="secondary" type="button">↻ Refresh</button></div></div>'+
   (isHead?'<div class="panel access-help"><h3>Temporary access delegation</h3><p>Choose exactly what another employee may do while you are unavailable. Their normal role stays unchanged. Access expires automatically and you can revoke it immediately.</p><p class="muted">Only the Head of Operations can grant or revoke access. Access to users, roles and permanent permissions cannot be delegated here.</p></div>':"")+
   (isHead&&!S.accessReady?'<div class="notice">Temporary access controls are unavailable. Refresh the page to retry; no permission changes can be made.</div>':"")+
   '<div class="panel table-wrap people-table-wrap"><table class="table people-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th>'+
@@ -286,7 +286,7 @@ function bind(){
  });
  if($("quickBreakdown"))$("quickBreakdown").onclick=addBreakdown;
  if($("quickService"))$("quickService").onclick=addService;
- if($("peopleRefresh"))$("peopleRefresh").onclick=load;
+ if($("peopleRefresh"))$("peopleRefresh").onclick=load;if($("addEmployee"))$("addEmployee").onclick=addEmployee;
  document.querySelectorAll(".manageAccess").forEach(element=>element.onclick=()=>manageAccess(element.dataset.id));
  if($("addM"))$("addM").onclick=addMachine;
  if($("addB"))$("addB").onclick=addBreakdown;
