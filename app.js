@@ -14,7 +14,91 @@ name=id=>S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.us
 function showFatal(message){console.error(message);let e=$("loadErr");if(e)e.textContent="⚠ "+message;else if($("loginMsg"))$("loginMsg").textContent=message}
 function norm(s){return String(s||"").trim().toLowerCase()}
 function metrics(){let m=S.m||[],total=m.length,c=k=>m.filter(x=>norm(x.status)===k).length,working=c("working"),available=c("available"),breakdown=c("breakdown"),maintenance=c("maintenance"),offline=c("offline"),pct=n=>total?Math.round(n/total*1000)/10:0;return{total,working,available,breakdown,maintenance,offline,workingPct:pct(working),operationalPct:pct(working+available),availabilityPct:pct(total-breakdown)}}
-function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,guide:guide}[S.view]||dash)();bind()}function dash(){let x=metrics();return '<div class="page-head"><div><h1>Fleet Dashboard</h1><div class="muted">Live fleet operations</div></div><button id="refresh" class="secondary">Refresh</button></div><div class="grid"><div class="card clickable" data-go="machines"><div>Working Now</div><div class="metric green">'+x.workingPct.toFixed(1)+'%</div>'+x.working+' working of '+x.total+'</div><div class="card clickable" data-go="machines"><div>Operational</div><div class="metric blue">'+x.operationalPct.toFixed(1)+'%</div>Working + Available</div><div class="card clickable" id="breakdownTile"><div>Breakdowns</div><div class="metric red">'+x.breakdown+'</div>Open now</div><div class="card"><div>Availability</div><div class="metric gold">'+x.availabilityPct.toFixed(1)+'%</div>'+(x.total-x.breakdown)+' of '+x.total+' not in Breakdown</div></div><div class="panel"><h3>Needs attention</h3>'+(x.breakdown?S.b.filter(b=>!b.resolved_at).slice(0,10).map(b=>'<div class="notice"><b>'+esc(getMachine(b.machine_id))+'</b> — '+esc(b.reason||"Breakdown")+' · '+fmt(b.started_at)+'</div>').join(""):'<div class="empty">No open breakdowns.</div>')+'</div>'}function serviceDue(){let today=new Date();today.setHours(0,0,0,0);let a=(S.m||[]).filter(m=>{let byHours=m.next_service_hours!=null&&Number(m.hours||0)>=Number(m.next_service_hours);let byDate=m.next_service_date&&new Date(m.next_service_date+"T00:00:00")<=today;return byHours||byDate}).sort((x,y)=>Number(y.hours||0)-Number(x.hours||0));return '<div class="page-head"><div><h1>Service Due</h1><div class="muted">Machines that have reached or passed their next scheduled service</div></div><button id="refresh" class="secondary">Refresh</button></div><div class="panel table-wrap"><table class="table"><thead><tr><th>Machine</th><th>Current Hours</th><th>Next Service</th><th>Status</th><th>Action</th></tr></thead><tbody>'+(a.map(m=>'<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td>'+Number(m.hours||0).toLocaleString()+'</td><td>'+serviceDueLabel(m)+'</td><td><span class="status breakdown">Due</span></td><td>'+ (canNextService()?'<button class="primary nextService" data-id="'+m.id+'">Set next service</button>':'View')+'</td></tr>').join("")||'<tr><td colspan="5" class="empty">No machines are currently due for service.</td></tr>')+'</tbody></table></div>'}
+function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,guide:guide}[S.view]||dash)();bind()}
+function serviceSchedule(m){
+ const current=Number(m.hours||0);
+ const remaining=m.next_service_hours==null?null:Number(m.next_service_hours)-current;
+ const rawDate=m.next_service_date?new Date(m.next_service_date+"T00:00:00"):null;
+ const validDate=rawDate&&Number.isFinite(rawDate.getTime())?rawDate:null;
+ const today=new Date();today.setHours(0,0,0,0);
+ const days=validDate?Math.round((validDate.getTime()-today.getTime())/86400000):null;
+ const warning=Math.max(0,Number(m.service_warning_hours??50));
+ const due=(remaining!=null&&remaining<=0)||(days!=null&&days<=0);
+ const soon=due||(remaining!=null&&remaining<=warning)||(days!=null&&days<=7);
+ const priority=Math.min(remaining==null?999999:remaining,days==null?999999:days*8);
+ const text=due?"Due now":(remaining!=null&&days!=null?(remaining+" h / "+days+" days left"):
+   remaining!=null?(Math.max(0,remaining).toLocaleString(undefined,{maximumFractionDigits:1})+" h left"):
+   days!=null?(days+" days left"):"Not scheduled");
+ return {due:!!due,soon:!!soon,priority,text,remaining,days};
+}
+function dashboardMetric(title,value,detail,kind,action){
+ return '<button type="button" class="ops-kpi ops-kpi-'+kind+'" '+action+'>'+
+  '<span class="ops-kpi-top"><span>'+esc(title)+'</span><span aria-hidden="true" class="ops-kpi-chevron">↗</span></span>'+
+  '<strong class="ops-kpi-value">'+esc(value)+'</strong><span class="ops-kpi-detail">'+esc(detail)+'</span></button>';
+}
+function dash(){
+ const x=metrics();
+ const open=S.b.filter(b=>!b.resolved_at);
+ const dueNow=S.m.filter(m=>serviceSchedule(m).due).length;
+ const approaching=S.m.filter(m=>m.next_service_hours!=null||m.next_service_date).map(m=>({m,service:serviceSchedule(m)}))
+  .sort((a,b)=>a.service.priority-b.service.priority).slice(0,5);
+ const displayStates=[
+  ["working","Working",x.working],
+  ["available","Available",x.available],
+  ["breakdown","Breakdown",x.breakdown],
+  ["maintenance","Maintenance",x.maintenance],
+  ["offline","Offline",x.offline]
+ ];
+ const distribution=displayStates.map(([state,title,count])=>{
+  const percentage=x.total?Number((100*count/x.total).toFixed(2)):0;
+  return '<span class="ops-distribution-segment ops-state-'+state+'" style="width:'+percentage+'%" role="presentation" title="'+esc(title)+': '+count+'"></span>';
+ }).join("");
+ const breakdownDetails=open.slice(0,4).map(b=>
+   '<div class="ops-action-row"><span class="ops-alert-symbol" aria-hidden="true">!</span>'+
+   '<div><strong>'+esc(getMachine(b.machine_id))+'</strong><small>'+esc(b.reason||"Breakdown reported")+' · '+esc(fmt(b.started_at))+'</small></div>'+
+   '<button type="button" class="secondary ops-mini-btn" data-go="breakdowns">View</button></div>'
+ ).join("");
+ const upcomingDetails=approaching.map(({m,service})=>
+   '<div class="ops-service-row"><span class="ops-service-icon '+(service.due?'due':service.soon?'soon':'')+'">◷</span>'+
+   '<div><strong>'+esc(m.name)+'</strong><small>'+esc(m.fleet_id)+' · Current '+Number(m.hours||0).toLocaleString()+' h</small></div>'+
+   '<span class="ops-service-count '+(service.due?'urgent':service.soon?'soon':'')+'">'+esc(service.text)+'</span></div>'
+ ).join("");
+ const recentServices=S.s.slice(0,3).map(item=>
+   '<div class="ops-activity-row"><span class="ops-activity-mark" aria-hidden="true">✓</span>'+
+   '<div><strong>'+esc(getMachine(item.machine_id))+'</strong><small>'+esc(item.work_completed||"Service completed")+'</small></div>'+
+   '<time>'+esc(fmt(item.service_date))+'</time></div>'
+ ).join("");
+ return '<div class="ops-dashboard">'+
+  '<section class="ops-hero"><div class="ops-hero-copy"><div class="ops-overline"><span class="ops-pulse"></span> LIVE FLEET OVERVIEW</div>'+
+  '<h1>Fleet command centre</h1><p>Know what is working, what needs attention, and what comes next.</p>'+
+  '<div class="ops-hero-footer"><span>'+x.total+' active machines</span><span aria-hidden="true">•</span>'+
+  '<span id="lastSyncLabel">Updated '+esc(S.lastLoadedAt?new Date(S.lastLoadedAt).toLocaleTimeString():"on refresh")+'</span></div></div>'+
+  '<div class="ops-hero-side"><div class="ops-ring" role="img" aria-label="'+x.workingPct.toFixed(1)+'% of machines working" style="background:conic-gradient(#57b7ed 0% '+x.workingPct+'%,rgba(255,255,255,.12) '+x.workingPct+'% 100%)"><div class="ops-ring-centre"><strong>'+x.workingPct.toFixed(1)+'%</strong><small>WORKING</small></div></div></div>'+
+  '<button id="refresh" type="button" class="ops-refresh" aria-label="Refresh fleet overview">↻ Refresh</button></section>'+
+  '<section class="ops-kpis" aria-label="Fleet key figures">'+
+  dashboardMetric("Working now",x.workingPct.toFixed(1)+"%",x.working+" of "+x.total+" machines","working",'data-state="working"')+
+  dashboardMetric("Operational",x.operationalPct.toFixed(1)+"%",(x.working+x.available)+" working or available","operational",'data-go="machines"')+
+  dashboardMetric("Breakdowns",String(x.breakdown),open.length+" open reports","breakdown",'data-filter-breakdowns="true"')+
+  dashboardMetric("Service due",String(dueNow),dueNow?"Requires attention":"All schedules on track","service",'data-go="service_due"')+
+  '</section>'+
+  '<div class="ops-overview-grid"><section class="panel ops-status-card"><div class="ops-section-heading"><div><h2>Fleet status</h2><p>Real-time status distribution</p></div><span class="ops-section-tag">'+x.total+' total</span></div>'+
+  '<div class="ops-distribution" role="img" aria-label="'+displayStates.map(row=>row[1]+': '+row[2]).join(', ')+'">'+distribution+'</div>'+
+  '<div class="ops-state-list">'+displayStates.map(([state,title,count])=>
+    '<button type="button" data-state="'+state+'" class="ops-state-button"><span class="ops-state-dot ops-state-'+state+'"></span><span>'+title+'</span><strong>'+count+'</strong></button>'
+  ).join("")+'</div></section>'+
+  '<section class="panel ops-attention-card"><div class="ops-section-heading"><div><h2>Needs attention</h2><p>Open machine breakdowns</p></div><button type="button" class="ops-text-action" data-filter-breakdowns="true">View all</button></div>'+
+  (breakdownDetails||(x.breakdown?'<div class="ops-empty-state">A machine is in Breakdown status but has no open breakdown report.</div>':'<div class="ops-empty-state"><span aria-hidden="true">✓</span> No open breakdowns. Fleet is running smoothly.</div>'))+
+  '</section></div>'+
+  '<div class="ops-overview-grid"><section class="panel ops-upcoming-card"><div class="ops-section-heading"><div><h2>Next services</h2><p>Closest scheduled maintenance</p></div><button type="button" class="ops-text-action" data-go="service_due">Service due</button></div>'+
+  (upcomingDetails||'<div class="ops-empty-state">No service schedules configured yet.</div>')+
+  '</section><section class="panel ops-actions-card"><div class="ops-section-heading"><div><h2>Quick actions</h2><p>Get the work done in fewer taps</p></div></div>'+
+  '<div class="ops-quick-actions"><button class="ops-quick-action" type="button" id="quickBreakdown"><span aria-hidden="true">!</span><strong>Report breakdown</strong><small>Log a machine issue</small></button>'+
+  '<button class="ops-quick-action" type="button" id="quickService"><span aria-hidden="true">＋</span><strong>Log service</strong><small>Record maintenance work</small></button>'+
+  '<button class="ops-quick-action" type="button" data-go="machines"><span aria-hidden="true">⌕</span><strong>Find machine</strong><small>View fleet and hours</small></button></div>'+
+  '<div class="ops-recent"><h3>Recent services</h3>'+(recentServices||'<p class="muted">No services recorded yet.</p>')+'</div>'+
+  '</section></div></div>';
+}
+function serviceDue(){let today=new Date();today.setHours(0,0,0,0);let a=(S.m||[]).filter(m=>{let byHours=m.next_service_hours!=null&&Number(m.hours||0)>=Number(m.next_service_hours);let byDate=m.next_service_date&&new Date(m.next_service_date+"T00:00:00")<=today;return byHours||byDate}).sort((x,y)=>Number(y.hours||0)-Number(x.hours||0));return '<div class="page-head"><div><h1>Service Due</h1><div class="muted">Machines that have reached or passed their next scheduled service</div></div><button id="refresh" class="secondary">Refresh</button></div><div class="panel table-wrap"><table class="table"><thead><tr><th>Machine</th><th>Current Hours</th><th>Next Service</th><th>Status</th><th>Action</th></tr></thead><tbody>'+(a.map(m=>'<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td>'+Number(m.hours||0).toLocaleString()+'</td><td>'+serviceDueLabel(m)+'</td><td><span class="status breakdown">Due</span></td><td>'+ (canNextService()?'<button class="primary nextService" data-id="'+m.id+'">Set next service</button>':'View')+'</td></tr>').join("")||'<tr><td colspan="5" class="empty">No machines are currently due for service.</td></tr>')+'</tbody></table></div>'}
 function serviceDueLabel(m){let parts=[];if(m.next_service_hours!=null)parts.push(Number(m.next_service_hours).toLocaleString()+" h");if(m.next_service_date)parts.push(new Date(m.next_service_date+"T00:00:00").toLocaleDateString());return parts.join(" / ")||"Not set"}
 function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),filter=S.fleetFilter?.status,a=S.m.filter(m=>(!filter||norm(m.status)===filter)&&((m.name+" "+m.fleet_id+" "+(m.model||"")+" "+(m.site||"")).toLowerCase().includes(q)));return '<div class="page-head"><div><h1>Machines</h1><div class="muted">Status, hours and fleet service schedule</div></div>'+(canFleetManage()?'<button id="addM" class="primary">+ Add machine</button>':"")+'</div><div class="toolbar"><input id="mq" placeholder="Search machines"></div><div class="panel table-wrap"><table class="table"><thead><tr><th>Machine</th><th>Status</th><th>Hours</th><th>Live Production</th><th>Next Service Due</th><th>Site</th><th>Actions</th></tr></thead><tbody>'+(a.map(m=>{let due=(m.next_service_hours!=null&&Number(m.hours||0)>=Number(m.next_service_hours))||(m.next_service_date&&new Date(m.next_service_date+"T00:00:00")<=new Date(new Date().toISOString().slice(0,10)+"T00:00:00"));return '<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td><span class="status '+esc(m.status)+'">'+esc(m.status)+'</span></td><td>'+Number(m.hours||0).toLocaleString()+'</td><td><span class="production-clock" data-production-machine="'+esc(m.id)+'">'+productionClockText(m)+'</span></td><td><span class="status '+(due?"breakdown":"available")+'">'+esc(serviceDueLabel(m))+(due?" · DUE":"")+'</span></td><td>'+esc(m.site||"—")+'</td><td>'+((canFleetManage()||canCorrectHours()||canNextService())?
  (canFleetManage()||canCorrectHours()?'<button class="secondary editHours" data-id="'+m.id+'">Edit hours</button> ':"")+
