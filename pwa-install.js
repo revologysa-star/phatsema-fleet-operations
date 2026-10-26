@@ -1,11 +1,12 @@
 "use strict";
 (function(){
  let installEvent=null;
+ let installed=false;
  const buttons=()=>document.querySelectorAll("[data-pwa-install]");
  const standalone=()=>window.matchMedia("(display-mode: standalone)").matches
                       ||navigator.standalone===true;
  function syncButtons(){
-  buttons().forEach(button=>{button.hidden=standalone();button.disabled=false;});
+  buttons().forEach(button=>{button.hidden=(standalone()||installed);button.disabled=false;});
  }
  async function install(){
   if(standalone())return;
@@ -29,6 +30,7 @@
   syncButtons();
  });
  window.addEventListener("appinstalled",()=>{
+  installed=true;
   installEvent=null;
   syncButtons();
  });
