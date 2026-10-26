@@ -109,11 +109,7 @@ alter default privileges for role postgres in schema public
   revoke all on sequences from anon;
 alter default privileges for role postgres in schema public
   revoke execute on functions from anon;
-alter default privileges for role supabase_admin in schema public
-  revoke all on tables from anon;
-alter default privileges for role supabase_admin in schema public
-  revoke all on sequences from anon;
-alter default privileges for role supabase_admin in schema public
-  revoke execute on functions from anon;
+-- Supabase's internal supabase_admin default ACLs require higher privileges;
+-- leave them unchanged rather than risking platform authentication/operations.
 
 notify pgrst, 'reload schema';
