@@ -1,0 +1,60 @@
+name: Publish Fleet Operations (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out audited source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Verify app and automated tests
+        run: |
+          node --check app.js
+          node --test tests/*.test.cjs
+
+      - name: Build static public application only
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp index.html styles.css app.js _site/
+          touch _site/.nojekyll
+          test -s _site/index.html
+          test -s _site/app.js
+          test -s _site/styles.css
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload fleet website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy fleet website
+        id: deployment
+        uses: actions/deploy-pages@v4
