@@ -144,3 +144,37 @@ body.dark .brand-lockup .logo-image{mix-blend-mode:screen;filter:brightness(1.35
  .top-actions .secondary{padding:8px;font-size:10px}
  .grid{grid-template-columns:1fr}
 }
+
+
+/* Final dark-mode logo polish: blend the image into the actual header backdrop,
+   not into its own isolated layer. Original artwork stays unchanged. */
+body.dark .top{
+  background:radial-gradient(ellipse at 8% 50%,rgba(22,120,190,.20),transparent 43%),
+             linear-gradient(110deg,#0b2032 0%,#071421 68%,#0a1c2b 100%);
+}
+body.dark .top-brand{isolation:auto}
+body.dark .top-brand::before{display:none}
+body.dark .top-brand>*{z-index:auto}
+body.dark .top-brand .top-logo{
+  isolation:auto;position:static;
+  background:transparent;
+  /* Invert the original black-on-white graphic to white-on-dark.
+     Screen blending hides the inverted image's black background. */
+  filter:invert(1) hue-rotate(180deg) brightness(1.2) contrast(1.28);
+  mix-blend-mode:screen;
+}
+body.dark .brand-lockup{isolation:auto}
+body.dark .brand-lockup .logo-image{
+  filter:invert(1) hue-rotate(180deg) brightness(1.2) contrast(1.28);
+  mix-blend-mode:screen;
+}
+body.dark .shell nav button{color:#b8cce0}
+body.dark .shell nav button:hover{color:#fff;background:#258bc51d}
+body.dark .shell nav button.active{color:#effaff;background:#258bc524;border-color:#3398d448}
+body.dark .top span#userBadge{color:#b7c9d8}
+@media(max-width:1199px){
+  .shell>aside nav{min-width:0;max-width:100%}
+  .shell>main{overflow-wrap:normal}
+  .shell>main .panel{max-width:100%}
+  .shell>main .table-wrap{overflow-x:auto}
+}
