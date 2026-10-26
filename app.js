@@ -2,7 +2,7 @@ const SUPABASE_URL="https://fduccizawxtqnqtuxmjl.supabase.co",KEY="sb_publishabl
 
 function initTheme(){const saved=localStorage.getItem("phatsema-theme");const dark=saved==="dark";document.body.classList.toggle("dark",dark);const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
 function toggleTheme(){const dark=!document.body.classList.contains("dark");document.body.classList.toggle("dark",dark);localStorage.setItem("phatsema-theme",dark?"dark":"light");const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
-document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],people:[],settings:[],audit:[],grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
+document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
 realHead=()=>S.p?.active!==false&&S.p?.role==="head_of_operations",
 activeGrants=id=>(S.grants||[]).filter(g=>g.user_id===id&&!g.revoked_at&&Date.parse(g.expires_at)>Date.now()),
 hasDelegated=scope=>activeGrants(S.user?.id).some(g=>g.permission===scope),
@@ -14,7 +14,7 @@ name=id=>S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.us
 function showFatal(message){console.error(message);let e=$("loadErr");if(e)e.textContent="⚠ "+message;else if($("loginMsg"))$("loginMsg").textContent=message}
 function norm(s){return String(s||"").trim().toLowerCase()}
 function metrics(){let m=S.m||[],total=m.length,c=k=>m.filter(x=>norm(x.status)===k).length,working=c("working"),available=c("available"),breakdown=c("breakdown"),maintenance=c("maintenance"),offline=c("offline"),pct=n=>total?Math.round(n/total*1000)/10:0;return{total,working,available,breakdown,maintenance,offline,workingPct:pct(working),operationalPct:pct(working+available),availabilityPct:pct(total-breakdown)}}
-function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,guide:guide}[S.view]||dash)();bind()}
+function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["reports","Reports"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,reports:reports,guide:guide}[S.view]||dash)();bind()}
 function serviceSchedule(m){
  const current=Number(m.hours||0);
  const remaining=m.next_service_hours==null?null:Number(m.next_service_hours)-current;
@@ -106,7 +106,175 @@ function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),fi
  (canNextService()?'<button class="secondary nextService" data-id="'+m.id+'">Next service</button> ':"")+
  (canFleetManage()?'<button class="danger rm" data-id="'+m.id+'">Remove</button>':"")
  :"View")+"</td></tr>"}).join("")||'<tr><td colspan="7" class="empty">No machines.</td></tr>')+"</tbody></table></div>"}
-function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Breakdowns</h1><div class="muted">Report and complete repairs</div></div><button id="addB" class="primary">+ Report issue</button></div><div class="toolbar"><input type="search" id="bq" aria-label="Search breakdowns" placeholder="Search breakdowns" value="'+esc(S.breakdownSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-breakdown-table"><thead><tr><th>Machine</th><th>Problem</th><th>Started</th><th>Status</th><th>Assigned</th><th>Action</th></tr></thead><tbody>'+(a.map(b=>'<tr><td>'+esc(getMachine(b.machine_id))+'</td><td>'+esc(b.reason)+'</td><td>'+fmt(b.started_at)+'</td><td>'+ (b.resolved_at?"Resolved":"Open")+'</td><td>'+esc(name(b.assigned_to))+'</td><td>'+(!b.resolved_at?'<button class="primary repair" data-id="'+b.id+'">Repair complete</button>':esc(b.not_ready_reason||"Resolved"))+"</td></tr>").join("")||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+"</tbody></table></div>"}function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}function people(){
+function canFinishBreakdown(b){
+ return !b.resolved_at&&(mgr()||(S.p?.active!==false&&b.assigned_to===S.user?.id));
+}
+function canUploadBreakdownPhoto(b){
+ return S.p?.active!==false&&(mgr()||b.reported_by===S.user?.id||b.assigned_to===S.user?.id);
+}
+function breakdowns(){
+ const q=(S.breakdownSearch||"").toLowerCase();
+ const items=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));
+ const rows=items.map(b=>{
+  const photos=(S.breakdownPhotos||[]).filter(p=>p.breakdown_id===b.id);
+  const photoLinks=photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener noreferrer">Photo '+(i+1)+'</a>').join(" · ");
+  const controls=[
+    !b.resolved_at&&mgr()?'<button type="button" class="secondary assignBreakdown" data-id="'+esc(b.id)+'">Assign technician</button>':"",
+    canFinishBreakdown(b)?'<button type="button" class="primary repair" data-id="'+esc(b.id)+'">Repair complete</button>':"",
+    canUploadBreakdownPhoto(b)?'<button type="button" class="secondary breakdownEvidence" data-id="'+esc(b.id)+'">Attach photos</button>':""
+  ].filter(Boolean).join(" ");
+  const state=b.resolved_at?"Resolved":b.repair_completed_at?"Repair recorded / not ready":"Open";
+  return '<tr><td>'+esc(getMachine(b.machine_id))+'</td>'+
+    '<td>'+esc(b.reason)+(b.notes?'<small>'+esc(b.notes)+'</small>':"")+'</td>'+
+    '<td>'+esc(fmt(b.started_at))+'</td>'+
+    '<td>'+esc(state)+(b.not_ready_reason?'<small>Still down: '+esc(b.not_ready_reason)+'</small>':"")+'</td>'+
+    '<td>'+esc(name(b.assigned_to))+'</td>'+
+    '<td class="breakdown-action-cell">'+(photoLinks?'<div class="breakdown-photo-links">'+photoLinks+'</div>':"")+
+      (controls||photoLinks?"":"—")+(controls?'<div class="breakdown-actions">'+controls+'</div>':"")+
+    '</td></tr>';
+ }).join("");
+ return '<div class="page-head"><div><h1>Breakdowns</h1><div class="muted">Report faults, assign a technician, document repairs and attach photographic evidence</div></div>'+
+ '<button id="addB" class="primary">+ Report issue</button></div>'+
+ '<div class="toolbar"><input type="search" id="bq" aria-label="Search breakdowns" placeholder="Search breakdowns" value="'+esc(S.breakdownSearch||"")+'"></div>'+
+ '<div class="panel table-wrap"><table class="table ops-cards-table ops-breakdown-table"><thead><tr>'+
+ '<th>Machine</th><th>Problem</th><th>Started</th><th>Status</th><th>Assigned</th><th>Actions / photos</th>'+
+ '</tr></thead><tbody>'+(rows||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+
+ '</tbody></table></div>';
+}
+function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}
+// Management reporting reflects recorded events and a CURRENT fleet snapshot.
+// It must never mislabel current status as historical fleet availability.
+function reportModel(days=S.reportDays||30,now=Date.now()){
+ const from=now-days*86400000;
+ const active=S.m||[];
+ const breakdowns=(S.b||[]).filter(b=>{
+   const started=Date.parse(b.started_at);
+   const resolved=b.resolved_at?Date.parse(b.resolved_at):now;
+   return Number.isFinite(started)&&Number.isFinite(resolved)&&started<=now&&resolved>=from;
+ });
+ const services=(S.s||[]).filter(x=>{
+   const when=Date.parse(x.service_date||x.created_at);
+   return Number.isFinite(when)&&when>=from&&when<=now;
+ });
+ const downtimeMinutes=b=>{
+   const start=Date.parse(b.started_at);
+   const stop=b.resolved_at?Date.parse(b.resolved_at):now;
+   if(!Number.isFinite(start)||!Number.isFinite(stop))return 0;
+   return Math.max(0,Math.min(stop,now)-Math.max(start,from))/60000;
+ };
+ const rows=active.map(m=>{
+   const breaks=breakdowns.filter(b=>b.machine_id===m.id);
+   const serviced=services.filter(x=>x.machine_id===m.id);
+   const minutes=breaks.reduce((n,b)=>n+downtimeMinutes(b),0);
+   return {
+     machine:m.name||m.fleet_id||"Unknown",fleet_id:m.fleet_id||"",
+     site:m.site||"Not specified",status:norm(m.status)||"unknown",
+     hours:Number(m.hours||0),
+     breakdowns:breaks.filter(b=>Date.parse(b.started_at)>=from).length,
+     open:breaks.filter(b=>!b.resolved_at).length,
+     downtime_minutes:Math.round(minutes),
+     services:serviced.length,
+     service_due:serviceSchedule(m).due?"Due":"Not due"
+   };
+ });
+ const totalDowntime=rows.reduce((sum,r)=>sum+r.downtime_minutes,0);
+ const summary={
+   machines:rows.length,
+   working:rows.filter(r=>r.status==="working").length,
+   breakdown:rows.filter(r=>r.status==="breakdown").length,
+   open:breakdowns.filter(b=>!b.resolved_at).length,
+   breakdowns:breakdowns.filter(b=>Date.parse(b.started_at)>=from).length,
+   serviceCount:services.length,
+   due:rows.filter(r=>r.service_due==="Due").length,
+   downtimeHours:Number((totalDowntime/60).toFixed(1))
+ };
+ return {days,from,now,rows,breakdowns,services,summary,downtimeMinutes};
+}
+function reports(){
+ if(!mgr())return '<div class="panel"><h2>Management access required</h2></div>';
+ const r=reportModel(),summary=r.summary;
+ const start=new Date(r.from).toLocaleDateString();
+ const end=new Date(r.now).toLocaleDateString();
+ const kpi=(label,value,small)=>'<div class="report-stat"><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong><span>'+esc(small)+'</span></div>';
+ const table=r.rows.slice().sort((a,b)=>b.downtime_minutes-a.downtime_minutes).map(m=>
+  '<tr><td>'+esc(m.machine)+'<small>'+esc(m.fleet_id)+'</small></td>'+
+  '<td>'+esc(m.site)+'</td><td>'+esc(m.status)+'</td>'+
+  '<td>'+m.breakdowns+'</td><td>'+m.open+'</td>'+
+  '<td>'+Number(m.downtime_minutes/60).toFixed(1)+'</td><td>'+m.services+'</td>'+
+  '<td>'+esc(m.service_due)+'</td></tr>').join("");
+ return '<div class="report-page">'+
+ '<div class="page-head"><div><h1>Management reports</h1><p class="muted">Recorded maintenance and breakdowns · Current fleet snapshot</p></div></div>'+
+ '<div class="report-toolbar"><div><label for="reportPeriod">Reporting period</label><select id="reportPeriod">'+
+ [7,30,90].map(n=>'<option value="'+n+'" '+(r.days===n?'selected':'')+'>Last '+n+' days</option>').join("")+
+ '</select></div><button id="reportPrint" type="button" class="primary">Print / Save as PDF</button></div>'+
+ '<div class="report-print-title"><strong>Phatsema Fleet Operations</strong><span>Management report · '+esc(start)+' — '+esc(end)+'</span></div>'+
+ '<div class="report-stats">'+
+ kpi("Fleet online now",summary.working+"/"+summary.machines,"Current working status")+
+ kpi("Open breakdowns",summary.open,"Currently unresolved")+
+ kpi("Reported breakdowns",summary.breakdowns,"Started within selected period")+
+ kpi("Recorded downtime",summary.downtimeHours+" h","Overlapping selected period")+
+ kpi("Services logged",summary.serviceCount,"Within selected period")+
+ kpi("Service overdue",summary.due,"Current service schedule")+
+ '</div>'+
+ '<div class="panel report-table-panel"><div class="report-table-title"><div><h2>Machine performance summary</h2><p class="muted">Breakdown hours cover recorded periods only. Current machine status is not a historical availability percentage.</p></div>'+
+ '<button type="button" class="secondary reportExport" data-report="summary">Export summary CSV</button></div>'+
+ '<div class="table-wrap"><table class="table report-table"><thead><tr><th>Machine</th><th>Site</th><th>Current status</th><th>New breakdowns</th><th>Open</th><th>Downtime (h)</th><th>Services</th><th>Due</th></tr></thead><tbody>'+
+ (table||'<tr><td colspan="8" class="empty">No machines found.</td></tr>')+
+ '</tbody></table></div></div>'+
+ '<div class="report-export-grid">'+ '<div class="panel"><h3>Breakdown history</h3><p class="muted">Export date, machine, problem, assignment, repair outcome and time recorded in this period.</p><button class="secondary reportExport" data-report="breakdowns">Export breakdown CSV</button></div>'+
+ '<div class="panel"><h3>Service history</h3><p class="muted">Export service date, machine, meter reading and work completed in this period.</p><button class="secondary reportExport" data-report="services">Export service CSV</button></div></div>'+
+ '<p class="report-disclaimer">Generated '+esc(new Date(r.now).toLocaleString())+
+ '. Source: recorded machine, breakdown and service data. Production time is estimated from recorded machine status, not physical machine telemetry. Downtime and fleet counts require operational verification.</p>'+
+ '</div>';
+}
+// Neutralizes CSV formula injection in spreadsheets without corrupting numbers.
+function reportCsvCell(value){
+ let t=String(value==null?"":value);
+ if(/^[\s\x00-\x1f]*[=+\-@]/.test(t))t="'"+t;
+ return '"'+t.replace(/"/g,'""')+'"';
+}
+function reportCSV(rows){
+ return "\ufeff"+rows.map(row=>row.map(reportCsvCell).join(",")).join("\r\n")+"\r\n";
+}
+function reportExportData(type,period=reportModel()){
+ const {rows,breakdowns,services,downtimeMinutes}=period;
+ if(type==="summary")return [
+  ["Machine","Fleet ID","Site","Current status","Hour reading","Breakdowns started","Open breakdowns","Recorded downtime hours","Services","Service due"],
+  ...rows.map(x=>[x.machine,x.fleet_id,x.site,x.status,x.hours,x.breakdowns,x.open,
+    (x.downtime_minutes/60).toFixed(1),x.services,x.service_due])
+ ];
+ if(type==="breakdowns")return [
+  ["Machine","Started","Resolved","Status","Reason","Assigned to","Reported by","Downtime hours in period","Repair notes","Not ready reason"],
+  ...breakdowns.map(b=>[getMachine(b.machine_id),b.started_at,b.resolved_at||"",
+    b.resolved_at?"Resolved":"Open",b.reason||"",name(b.assigned_to),
+    name(b.reported_by),(downtimeMinutes(b)/60).toFixed(2),b.repair_notes||"",b.not_ready_reason||""])
+ ];
+ if(type==="services")return [
+  ["Machine","Date","Meter reading","Work completed","Notes","Logged by"],
+  ...services.map(s=>[getMachine(s.machine_id),s.service_date||s.created_at,
+    s.hour_reading,s.work_completed||"",s.notes||"",name(s.recorded_by)])
+ ];
+ throw new Error("Unknown report type.");
+}
+function exportFleetReport(event){
+ if(!mgr())return toast("Management access required",true);
+ const type=event?.currentTarget?.dataset?.report||"summary";
+ try{
+  const content=reportCSV(reportExportData(type));
+  const file=new Blob([content],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(file);
+  const anchor=document.createElement("a");
+  anchor.href=url;
+  anchor.download="phatsema-"+type+"-last-"+(S.reportDays||30)+"-days.csv";
+  anchor.style.display="none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  toast("CSV report downloaded");
+ }catch(e){toast("Report export failed: "+(e.message||String(e)),true)}
+}
+function people(){
  const isHead=realHead();
  const rows=(S.people||[]).map(p=>{
    const grants=activeGrants(p.id);
@@ -270,7 +438,7 @@ function settings(){let g=k=>S.settings.find(x=>x.key===k)?.value,enabled=g("wha
  return '<div class="page-head"><div><h1>Training guide</h1><p class="muted">A quick reference for the Phatsema team</p></div></div>'+
  '<div class="ops-training-grid">'+
  '<section class="panel"><h2>Reporting a breakdown</h2><p>Open <strong>Breakdowns → Report issue</strong>, choose the machine, describe the problem and assign a technician where appropriate. A machine marked Breakdown stops accumulating Live Production Time.</p></section>'+
- '<section class="panel"><h2>Repair completed</h2><p>Use <strong>Repair complete</strong> on the open breakdown. Confirm whether the machine is ready to return to Working. Its production timer resumes when Working is restored.</p></section>'+
+ '<section class="panel"><h2>Repair completed</h2><p>The assigned technician or management uses <strong>Repair complete</strong>, adds repair notes and confirms whether the machine can return to Working. Otherwise it remains on Breakdown with a reason.</p></section><section class="panel"><h2>Breakdown photos and assignment</h2><p>Report issues with optional photo evidence, or use <strong>Attach photos</strong> later. A foreman or manager assigns or reassigns a technician.</p></section><section class="panel"><h2>Management reports</h2><p>Managers open <strong>Reports</strong>, choose a 7, 30 or 90-day window, download machine/breakdown/service CSV reports, or use <strong>Print / Save as PDF</strong>. Current fleet status is a snapshot, not historical availability.</p></section>'+
  '<section class="panel"><h2>Log service</h2><p>Select <strong>Service → Log service</strong>, provide the physical meter reading and the maintenance performed. Attach photos as evidence where available. Engine hours are separate from Live Production Time.</p></section>'+
  '<section class="panel"><h2>Set next service</h2><p>Head of Operations or an employee with temporary <strong>Set Next Service</strong> access can adjust due hours or the due date. This does not modify Current Hours.</p></section>'+
  '<section class="panel"><h2>Correct machine hours</h2><p>The Head of Operations or a temporarily authorized employee can correct a meter reading up or down and must provide a reason. Each correction is recorded in Audit.</p></section>'+
@@ -312,14 +480,16 @@ async function load(){
   db.from("breakdowns").select("*").order("started_at",{ascending:false}),
   db.from("services").select("*").order("service_date",{ascending:false}),
   db.from("service_photos").select("*").order("created_at",{ascending:true}),
+  db.from("breakdown_photos").select("*").order("created_at",{ascending:true}),
   db.from("profiles").select("*").order("full_name"),
   db.from("app_settings").select("*"),
   db.from("machine_production_clocks").select("machine_id,accumulated_seconds,running_since"),
   db.from("temporary_access_grants").select("id,user_id,permission,granted_at,expires_at,revoked_at,granted_by,reason")
  ]);
- const [m,b,s,ph,pe,se,cl,gr]=results,failed=[];
+ const [m,b,s,ph,bph,pe,se,cl,gr]=results,failed=[];
  function rows(r,label,fallback){
    if(r.status!=="fulfilled"){failed.push(label+": "+(r.reason?.message||"connection failed"));return fallback}
+   if(!r.value){failed.push(label+": no database response received");return fallback}
    if(r.value.error){failed.push(label+": "+r.value.error.message);return fallback}
    return r.value.data||[];
  }
@@ -349,6 +519,17 @@ async function load(){
    S.photos=signed.filter(r=>r.status==="fulfilled").map(r=>r.value);
    const missed=signed.filter(r=>r.status==="rejected");
    if(missed.length)failed.push(missed.length+" service photo(s) unavailable");
+ }
+ const breakdownPhotoRows=rows(bph,"breakdown photos",null);
+ if(breakdownPhotoRows!==null){
+   const signed=await Promise.allSettled(breakdownPhotoRows.map(async photo=>{
+     const result=await db.storage.from("fleet-evidence").createSignedUrl(photo.storage_path,3600);
+     if(result.error)throw result.error;
+     return {...photo,url:result.data.signedUrl};
+   }));
+   S.breakdownPhotos=signed.filter(p=>p.status==="fulfilled").map(p=>p.value);
+   const failedPhotos=signed.filter(p=>p.status==="rejected");
+   if(failedPhotos.length)failed.push(failedPhotos.length+" breakdown photo(s) unavailable");
  }
  if(m.status==="fulfilled"&&!m.value.error)S.lastLoadedAt=new Date().toISOString();
  S.loadErrors=failed;
@@ -389,6 +570,9 @@ function bind(){
  if($("addS"))$("addS").onclick=addService;
  if($("save"))$("save").onclick=saveSettings;
  if($("ar"))$("ar").onclick=loadAudit;
+ if($("reportPeriod"))$("reportPeriod").onchange=event=>{S.reportDays=Number(event.target.value)||30;render()};
+ document.querySelectorAll(".reportExport").forEach(btn=>btn.onclick=exportFleetReport);
+ if($("reportPrint"))$("reportPrint").onclick=()=>window.print();
  if($("auditSearch"))$("auditSearch").oninput=renderAudit;
  if($("auditAction"))$("auditAction").onchange=renderAudit;
  document.querySelectorAll(".editHours").forEach(element=>element.onclick=()=>editMachine(element.dataset.id));
@@ -396,9 +580,104 @@ function bind(){
  document.querySelectorAll(".st").forEach(element=>element.onclick=()=>status(element.dataset.id));
  document.querySelectorAll(".rm").forEach(element=>element.onclick=()=>removeMachine(element.dataset.id));
  document.querySelectorAll(".repair").forEach(element=>element.onclick=()=>repair(element.dataset.id));
+ document.querySelectorAll(".assignBreakdown").forEach(element=>element.onclick=()=>assignBreakdown(element.dataset.id));
+ document.querySelectorAll(".breakdownEvidence").forEach(element=>element.onclick=()=>attachBreakdownEvidence(element.dataset.id));
  if(S.view==="audit")loadAudit();
 }
-function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Name</label><input name="name" required></div><div><label>Fleet ID</label><input name="fleet_id" required></div><div><label>Model</label><input name="model"></div><div><label>Site</label><input name="site"></div><div><label>Hours</label><input name="hours" type="number" value="0"></div><div><label>Status</label><select name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',async f=>{let {error}=await db.rpc("create_machine",{p_name:f.get("name"),p_fleet_id:f.get("fleet_id"),p_model:f.get("model"),p_site:f.get("site"),p_hours:Number(f.get("hours")||0),p_status:f.get("status"),p_service_interval_hours:500,p_service_warning_hours:50});if(error)throw error;$("modalRoot").innerHTML="";toast("Machine added");load()})}function addBreakdown(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join(""),pe=S.people.filter(p=>p.active).map(p=>'<option value="'+p.id+'">'+esc(p.full_name||p.username)+" · "+esc(p.role)+"</option>").join("");modal("Report breakdown",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Problem</label><select name="reason"><option>Engine</option><option>Hydraulic</option><option>Electrical</option><option>Tyre / Track</option><option>Cooling system</option><option>Transmission</option><option>Other</option></select><label>Technician</label><select name="assigned_to"><option value="">Unassigned</option>'+pe+'</select><label>Notes</label><textarea name="notes" rows="4"></textarea>',async f=>{let {error}=await db.rpc("report_breakdown",{p_machine_id:f.get("machine_id"),p_reason:f.get("reason"),p_notes:f.get("notes"),p_assigned_to:f.get("assigned_to")||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Breakdown reported");load()})}function addService(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+Number(m.hours||0)+"h</option>").join("");modal("Log service",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Hour reading</label><input name="hours" type="number" min="0" step=".1" required><label>Work completed</label><textarea name="work" rows="4" required></textarea><label>Notes</label><textarea name="notes" rows="3"></textarea><label>Photos of work done <span class="muted">(optional)</span></label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple><div class="muted">Add up to 8 photos. These are stored with the service record.</div>',async f=>{let files=Array.from(f.getAll("photos")||[]).filter(x=>x&&x.size).slice(0,8);let {data,error}=await db.rpc("log_service",{p_machine_id:f.get("machine_id"),p_work_completed:f.get("work"),p_hour_reading:Number(f.get("hours")),p_notes:f.get("notes")});if(error)throw error;let serviceId=data?.id||data;if(!serviceId)throw new Error("Service was logged but no service ID was returned, so photos could not be attached.");for(let file of files){let safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_"),path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;let up=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;let ins=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});if(ins.error)throw ins.error}$("modalRoot").innerHTML="";toast(files.length?"Service logged with "+files.length+" photo"+(files.length===1?"":"s"):"Service logged");load()})}function editMachine(id){
+function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Name</label><input name="name" required></div><div><label>Fleet ID</label><input name="fleet_id" required></div><div><label>Model</label><input name="model"></div><div><label>Site</label><input name="site"></div><div><label>Hours</label><input name="hours" type="number" value="0"></div><div><label>Status</label><select name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',async f=>{let {error}=await db.rpc("create_machine",{p_name:f.get("name"),p_fleet_id:f.get("fleet_id"),p_model:f.get("model"),p_site:f.get("site"),p_hours:Number(f.get("hours")||0),p_status:f.get("status"),p_service_interval_hours:500,p_service_warning_hours:50});if(error)throw error;$("modalRoot").innerHTML="";toast("Machine added");load()})}function validPhotoFiles(files){
+ const selected=Array.from(files||[]).filter(x=>x&&x.size);
+ if(selected.length>5)throw new Error("Select no more than 5 photos per upload.");
+ const types=["image/jpeg","image/png","image/webp","image/heic","image/gif"];
+ for(const file of selected){
+  if(!types.includes(file.type))throw new Error("Only JPG, PNG, WebP, HEIC or GIF photos are supported.");
+  if(file.size>8*1024*1024)throw new Error("Each photo must be 8 MB or smaller.");
+ }
+ return selected;
+}
+async function uploadBreakdownPhotos(id,files){
+ const selected=validPhotoFiles(files);
+ let uploaded=0,failed=0;
+ for(const file of selected){
+   const cleaned=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,95);
+   const path="breakdowns/"+id+"/"+crypto.randomUUID()+"_"+cleaned;
+   const result=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});
+   if(result.error){failed++;continue}
+   const linked=await db.from("breakdown_photos").insert({breakdown_id:id,storage_path:path});
+   if(linked.error){
+     failed++;
+     await db.storage.from("fleet-evidence").remove([path]).catch(()=>{});
+   }else uploaded++;
+ }
+ return {uploaded,failed};
+}
+function breakdownUploadText(result){
+ if(!result)return "Breakdown recorded.";
+ return result.failed
+  ?result.uploaded+" photo(s) saved; "+result.failed+" could not upload. Use Attach photos to retry missing evidence."
+  :result.uploaded+" breakdown photo(s) saved.";
+}
+function addBreakdown(){
+ const mo=S.m.map(m=>'<option value="'+esc(m.id)+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join("");
+ const people=S.people.filter(p=>p.active).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.full_name||p.username)+" · "+esc(p.role)+"</option>").join("");
+ const assign=mgr()?'<label>Assigned technician</label><select name="assigned_to"><option value="">Unassigned</option>'+people+'</select>'
+ :'<p class="muted">A foreman or manager can assign the technician after you report the issue.</p>';
+ modal("Report breakdown",
+  '<label>Machine</label><select name="machine_id" required>'+mo+'</select>'+
+  '<label>Problem</label><select name="reason"><option>Engine</option><option>Hydraulic</option><option>Electrical</option><option>Tyre / Track</option><option>Cooling system</option><option>Transmission</option><option>Other</option></select>'+
+  assign+'<label>Notes</label><textarea name="notes" rows="4" placeholder="Symptoms, location and safety concerns"></textarea>'+
+  '<label>Photo evidence (optional)</label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple>'+
+  '<p class="muted">Up to 5 photos, maximum 8 MB each. You can also attach photos later.</p>',
+  async form=>{
+   const files=validPhotoFiles(form.getAll("photos"));
+   const {data,error}=await db.rpc("report_breakdown",{
+     p_machine_id:form.get("machine_id"),p_reason:form.get("reason"),
+     p_notes:form.get("notes"),p_assigned_to:mgr()?(form.get("assigned_to")||null):null
+   });
+   if(error)throw error;
+   // Do not re-submit the successful breakdown if some evidence uploads fail.
+   let evidence={uploaded:0,failed:0};
+   if(files.length){
+     try{evidence=await uploadBreakdownPhotos(data,files)}
+     catch(_){evidence={uploaded:0,failed:files.length}}
+   }
+   $("modalRoot").innerHTML="";
+   toast(files.length?("Breakdown reported. "+breakdownUploadText(evidence)):"Breakdown reported");
+   await load();
+  });
+}
+function assignBreakdown(id){
+ if(!mgr())return toast("Management permission required to assign a repair.",true);
+ const b=S.b.find(x=>x.id===id);
+ if(!b||b.resolved_at)return toast("This breakdown is no longer open.",true);
+ const employees=S.people.filter(p=>p.active).map(p=>
+  '<option value="'+esc(p.id)+'"'+(b.assigned_to===p.id?' selected':'')+'>'+esc(p.full_name||p.username)+' · '+esc(p.role)+'</option>').join("");
+ modal("Assign technician",'<p class="muted">'+esc(getMachine(b.machine_id))+' — '+esc(b.reason)+'</p>'+
+ '<label>Employee responsible for repair</label><select name="technician"><option value="">Unassigned</option>'+employees+'</select>',
+ async form=>{
+  const {error}=await db.rpc("assign_breakdown",{p_breakdown_id:id,p_assigned_to:form.get("technician")||null});
+  if(error)throw error;
+  $("modalRoot").innerHTML="";
+  toast("Technician assignment saved");
+  await load();
+ });
+}
+function attachBreakdownEvidence(id){
+ const b=S.b.find(x=>x.id===id);
+ if(!b||!canUploadBreakdownPhoto(b))return toast("You cannot attach evidence to this breakdown.",true);
+ modal("Attach breakdown photos",
+  '<p class="muted">'+esc(getMachine(b.machine_id))+' — '+esc(b.reason)+'</p>'+
+  '<label>Choose photos</label><input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple required>'+
+  '<p class="muted">Up to 5 photos per upload, maximum 8 MB each. Originals remain in private storage.</p>',
+  async form=>{
+   const files=validPhotoFiles(form.getAll("photos"));
+   if(!files.length)throw new Error("Choose at least one photo.");
+   const result=await uploadBreakdownPhotos(id,files);
+   $("modalRoot").innerHTML="";
+   toast(breakdownUploadText(result),result.failed>0);
+   await load();
+  });
+}
+function addService(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+Number(m.hours||0)+"h</option>").join("");modal("Log service",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Hour reading</label><input name="hours" type="number" min="0" step=".1" required><label>Work completed</label><textarea name="work" rows="4" required></textarea><label>Notes</label><textarea name="notes" rows="3"></textarea><label>Photos of work done <span class="muted">(optional)</span></label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple><div class="muted">Add up to 8 photos. These are stored with the service record.</div>',async f=>{let files=Array.from(f.getAll("photos")||[]).filter(x=>x&&x.size).slice(0,8);let {data,error}=await db.rpc("log_service",{p_machine_id:f.get("machine_id"),p_work_completed:f.get("work"),p_hour_reading:Number(f.get("hours")),p_notes:f.get("notes")});if(error)throw error;let serviceId=data?.id||data;if(!serviceId)throw new Error("Service was logged but no service ID was returned, so photos could not be attached.");for(let file of files){let safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_"),path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;let up=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;let ins=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});if(ins.error)throw ins.error}$("modalRoot").innerHTML="";toast(files.length?"Service logged with "+files.length+" photo"+(files.length===1?"":"s"):"Service logged");load()})}function editMachine(id){
   const m=S.m.find(x=>x.id===id);
   if(!m)return;
   const current=Number(m.hours||0);
@@ -444,7 +723,35 @@ function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Na
   );
 }
 function setNextService(id){let m=S.m.find(x=>x.id===id);if(!m)return;modal("Set next service for "+m.name,'<div class="form-grid"><div><label>Next service at machine hours</label><input name="hours" type="number" min="0" step=".1" value="'+(m.next_service_hours!=null?Number(m.next_service_hours):Number(m.hours||0)+Number(m.service_interval_hours||500))+'"></div><div><label>Next service date <span class="muted">(optional)</span></label><input name="date" type="date" value="'+esc(m.next_service_date||"")+'"></div></div><p class="muted">Only the Head of Operations or a temporarily authorized employee can change this schedule. You can set hours, a date, or both.</p>',async f=>{let hours=f.get("hours"),date=f.get("date"),h=hours===""?null:Number(hours);if(h!==null&&(!Number.isFinite(h)||h<0))throw new Error("Enter a valid next service hour reading.");if(h===null&&!date)throw new Error("Set a next service hour reading or service date.");let{error}=await db.rpc("set_machine_next_service",{p_machine_id:id,p_next_service_hours:h,p_next_service_date:date||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Next service updated");load()})}
-function status(id){modal("Change status",'<label>Status</label><select name="status"><option>working</option><option>available</option><option>breakdown</option><option>maintenance</option><option>offline</option></select><label>Reason</label><textarea name="reason"></textarea>',async f=>{let {error}=await db.rpc("set_machine_status",{p_machine_id:id,p_status:f.get("status"),p_reason:f.get("reason")||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Status updated");load()})}async function removeMachine(id){let m=S.m.find(x=>x.id===id);if(!confirm("Remove "+m.name+" from the active fleet?"))return;let {error}=await db.rpc("retire_machine",{p_machine_id:id});if(error){toast(error.message,true);return}toast("Machine removed");load()}async function repair(id){let ready=confirm("Repair complete. Is the machine ready to go back to work?"),reason=null;if(!ready){reason=prompt("Why is the machine not ready?");if(reason===null||!reason.trim()){toast("A reason is required",true);return}}let {error}=await db.rpc("complete_breakdown",{p_breakdown_id:id,p_ready:ready,p_reason:reason,p_notes:null});if(error){toast(error.message,true);return}toast(ready?"Machine returned to Working":"Breakdown remains open");load()}async function saveSettings(){for(let [key,value] of [["service_interval_hours",Number($("si").value)],["service_warning_hours",Number($("sw").value)],["whatsapp_alert_number",$("wn").value.trim()],["whatsapp_alerts_enabled",$("we").value==="true"]]){let {error}=await db.from("app_settings").upsert({key,value,updated_by:S.user.id},{onConflict:"key"});if(error){toast(error.message,true);return}}toast("Settings saved");load()}function auditLabel(a){return String(a||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+function status(id){modal("Change status",'<label>Status</label><select name="status"><option>working</option><option>available</option><option>breakdown</option><option>maintenance</option><option>offline</option></select><label>Reason</label><textarea name="reason"></textarea>',async f=>{let {error}=await db.rpc("set_machine_status",{p_machine_id:id,p_status:f.get("status"),p_reason:f.get("reason")||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Status updated");load()})}async function removeMachine(id){let m=S.m.find(x=>x.id===id);if(!confirm("Remove "+m.name+" from the active fleet?"))return;let {error}=await db.rpc("retire_machine",{p_machine_id:id});if(error){toast(error.message,true);return}toast("Machine removed");load()}function repair(id){
+ const b=S.b.find(x=>x.id===id);
+ if(!b||!canFinishBreakdown(b))return toast("Only the assigned technician or management can complete this repair.",true);
+ modal("Complete breakdown repair",
+ '<p class="muted">'+esc(getMachine(b.machine_id))+' — '+esc(b.reason)+'</p>'+
+ '<label for="repairReady">Is the machine ready to return to work?</label>'+
+ '<select id="repairReady" name="ready"><option value="yes">Yes — return to Working</option><option value="no">No — keep on Breakdown</option></select>'+
+ '<div id="repairNotReady" class="hidden"><label for="repairReason">Why is the machine not ready?</label>'+
+ '<textarea id="repairReason" name="reason" rows="3" minlength="5" maxlength="500" placeholder="Explain remaining issue"></textarea></div>'+
+ '<label for="repairNotes">Work performed / repair notes</label>'+
+ '<textarea id="repairNotes" name="notes" rows="4" minlength="5" maxlength="1200" placeholder="Summarize inspection, work done and verification" required></textarea>',
+ async form=>{
+  const ready=form.get("ready")==="yes",reason=String(form.get("reason")||"").trim();
+  const notes=String(form.get("notes")||"").trim();
+  if(notes.length<5)throw new Error("Add at least 5 characters describing the repair.");
+  if(!ready&&reason.length<5)throw new Error("Explain why the machine cannot return to work.");
+  const {error}=await db.rpc("complete_breakdown",{
+    p_breakdown_id:id,p_ready:ready,p_reason:ready?null:reason,p_notes:notes
+  });
+  if(error)throw error;
+  $("modalRoot").innerHTML="";
+  toast(ready?"Breakdown resolved; machine returned to Working":"Repair notes recorded; machine remains on Breakdown");
+  await load();
+ });
+ const ready=$("repairReady"),reason=$("repairReason"),section=$("repairNotReady");
+ const update=()=>{const no=ready.value==="no";section.classList.toggle("hidden",!no);reason.required=no;};
+ ready.onchange=update;update();
+}
+async function saveSettings(){for(let [key,value] of [["service_interval_hours",Number($("si").value)],["service_warning_hours",Number($("sw").value)],["whatsapp_alert_number",$("wn").value.trim()],["whatsapp_alerts_enabled",$("we").value==="true"]]){let {error}=await db.from("app_settings").upsert({key,value,updated_by:S.user.id},{onConflict:"key"});if(error){toast(error.message,true);return}}toast("Settings saved");load()}function auditLabel(a){return String(a||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
 function auditActor(id){return S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.username||"System"}
 function auditMachine(x){return S.m.find(m=>m.id===x.entity_id)?.name||x.details?.after?.name||x.details?.before?.name||null}
 function auditDetail(x){let d=x.details||{};if(x.action==="temporary_access_granted"||x.action==="temporary_access_revoked")return accessLabel(d.permission||"access")+" · "+(x.action==="temporary_access_granted"?"Granted until "+(d.expires_at?fmt(d.expires_at):"expiry"):"Revoked")+(d.reason?" · Reason: "+d.reason:"");let from=d.from??d.before_status??d.before?.status,to=d.to??d.after_status??d.after?.status,h1=d.before_hours??d.before?.hours,h2=d.after_hours??d.after?.hours;if(x.action==="machine_hours_corrected")return "Current hours "+(d.before_hours??"—")+" → "+(d.after_hours??"—")+" · Reason: "+(d.reason||"not supplied");if(x.action==="machine_status_changed"&&from!==undefined)return "Status "+auditLabel(from)+" → "+auditLabel(to)+(d.reason?" · "+d.reason:"");if((x.action==="update_machine"||x.action==="machine_updated")&&(h1!==undefined||h2!==undefined||from!==undefined||to!==undefined)){let parts=[];if(h1!==undefined||h2!==undefined)parts.push("Hours "+(h1??"—")+" → "+(h2??"—"));if(from!==undefined||to!==undefined)parts.push("Status "+auditLabel(from??"—")+" → "+auditLabel(to??"—"));return parts.join(" · ")}let parts=[];Object.entries(d).forEach(([k,v])=>{if(k==="before"||k==="after"||v===null||v===undefined||v==="")return;let val=typeof v==="object"?JSON.stringify(v):String(v);parts.push(auditLabel(k)+": "+val)});return parts.join(" · ")||"Action recorded"}
