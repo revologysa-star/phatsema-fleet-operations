@@ -149,6 +149,7 @@ test("failed machine query retains previous fleet and shows a visible error",asy
   breakdowns:{data:[],error:null},
   services:{data:[],error:null},
   service_photos:{data:[],error:null},
+  breakdown_photos:{data:[],error:null},
   profiles:{data:[],error:null},
   app_settings:{data:[],error:null},
   machine_production_clocks:{data:[],error:null},
