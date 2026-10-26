@@ -499,3 +499,34 @@ body.dark .employee-form input,body.dark .employee-form select{color:var(--text)
  .audit-print-details{white-space:pre-wrap}
  .audit-print-footer{font-size:9px;color:#555!important;margin:12px 0 0}
 }
+
+
+/* Progressive Web App installation controls. */
+[data-pwa-install][hidden]{display:none!important}
+.pwa-install-btn{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ gap:6px;
+ background:var(--surface2,#f8fbff)!important;
+ border:1px solid var(--phatsema,#1267a8)!important;
+ color:var(--phatsema,#1267a8)!important;
+ font-weight:750;
+ min-height:38px;
+ padding:8px 13px;
+ border-radius:10px;
+ white-space:nowrap;
+ cursor:pointer
+}
+.pwa-install-btn:hover,.pwa-install-btn:focus-visible{
+ background:var(--phatsema,#1267a8)!important;
+ color:#fff!important;
+ outline-offset:2px
+}
+.login-card .pwa-install-btn{width:100%;margin-top:10px}
+.top-actions .pwa-install-btn{font-size:12px}
+body.dark .pwa-install-btn{background:#0c3354!important;color:#fff!important;border-color:#6daed5!important}
+@media(max-width:650px){
+ .top-actions .pwa-install-btn{min-height:34px;padding:7px 9px;font-size:11px}
+}
+@media print{[data-pwa-install]{display:none!important}}
