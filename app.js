@@ -106,7 +106,42 @@ function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),fi
  (canNextService()?'<button class="secondary nextService" data-id="'+m.id+'">Next service</button> ':"")+
  (canFleetManage()?'<button class="danger rm" data-id="'+m.id+'">Remove</button>':"")
  :"View")+"</td></tr>"}).join("")||'<tr><td colspan="7" class="empty">No machines.</td></tr>')+"</tbody></table></div>"}
-function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Breakdowns</h1><div class="muted">Report and complete repairs</div></div><button id="addB" class="primary">+ Report issue</button></div><div class="toolbar"><input type="search" id="bq" aria-label="Search breakdowns" placeholder="Search breakdowns" value="'+esc(S.breakdownSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-breakdown-table"><thead><tr><th>Machine</th><th>Problem</th><th>Started</th><th>Status</th><th>Assigned</th><th>Action</th></tr></thead><tbody>'+(a.map(b=>'<tr><td>'+esc(getMachine(b.machine_id))+'</td><td>'+esc(b.reason)+'</td><td>'+fmt(b.started_at)+'</td><td>'+ (b.resolved_at?"Resolved":"Open")+'</td><td>'+esc(name(b.assigned_to))+'</td><td>'+(!b.resolved_at?'<button class="primary repair" data-id="'+b.id+'">Repair complete</button>':esc(b.not_ready_reason||"Resolved"))+"</td></tr>").join("")||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+"</tbody></table></div>"}function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}
+function canFinishBreakdown(b){
+ return !b.resolved_at&&(mgr()||(S.p?.active!==false&&b.assigned_to===S.user?.id));
+}
+function canUploadBreakdownPhoto(b){
+ return S.p?.active!==false&&(mgr()||b.reported_by===S.user?.id||b.assigned_to===S.user?.id);
+}
+function breakdowns(){
+ const q=(S.breakdownSearch||"").toLowerCase();
+ const items=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));
+ const rows=items.map(b=>{
+  const photos=(S.breakdownPhotos||[]).filter(p=>p.breakdown_id===b.id);
+  const photoLinks=photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener noreferrer">Photo '+(i+1)+'</a>').join(" · ");
+  const controls=[
+    !b.resolved_at&&mgr()?'<button type="button" class="secondary assignBreakdown" data-id="'+esc(b.id)+'">Assign technician</button>':"",
+    canFinishBreakdown(b)?'<button type="button" class="primary repair" data-id="'+esc(b.id)+'">Repair complete</button>':"",
+    canUploadBreakdownPhoto(b)?'<button type="button" class="secondary breakdownEvidence" data-id="'+esc(b.id)+'">Attach photos</button>':""
+  ].filter(Boolean).join(" ");
+  const state=b.resolved_at?"Resolved":b.repair_completed_at?"Repair recorded / not ready":"Open";
+  return '<tr><td>'+esc(getMachine(b.machine_id))+'</td>'+
+    '<td>'+esc(b.reason)+(b.notes?'<small>'+esc(b.notes)+'</small>':"")+'</td>'+
+    '<td>'+esc(fmt(b.started_at))+'</td>'+
+    '<td>'+esc(state)+(b.not_ready_reason?'<small>Still down: '+esc(b.not_ready_reason)+'</small>':"")+'</td>'+
+    '<td>'+esc(name(b.assigned_to))+'</td>'+
+    '<td class="breakdown-action-cell">'+(photoLinks?'<div class="breakdown-photo-links">'+photoLinks+'</div>':"")+
+      (controls||photoLinks?"":"—")+(controls?'<div class="breakdown-actions">'+controls+'</div>':"")+
+    '</td></tr>';
+ }).join("");
+ return '<div class="page-head"><div><h1>Breakdowns</h1><div class="muted">Report faults, assign a technician, document repairs and attach photographic evidence</div></div>'+
+ '<button id="addB" class="primary">+ Report issue</button></div>'+
+ '<div class="toolbar"><input type="search" id="bq" aria-label="Search breakdowns" placeholder="Search breakdowns" value="'+esc(S.breakdownSearch||"")+'"></div>'+
+ '<div class="panel table-wrap"><table class="table ops-cards-table ops-breakdown-table"><thead><tr>'+
+ '<th>Machine</th><th>Problem</th><th>Started</th><th>Status</th><th>Assigned</th><th>Actions / photos</th>'+
+ '</tr></thead><tbody>'+(rows||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+
+ '</tbody></table></div>';
+}
+function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}
 // Management reporting reflects recorded events and a CURRENT fleet snapshot.
 // It must never mislabel current status as historical fleet availability.
 function reportModel(days=S.reportDays||30,now=Date.now()){
