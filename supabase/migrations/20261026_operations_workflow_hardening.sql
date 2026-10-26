@@ -196,3 +196,21 @@ CREATE POLICY fleet_evidence_active_guard ON storage.objects
 CREATE INDEX IF NOT EXISTS idx_breakdown_photos_breakdown_id ON public.breakdown_photos(breakdown_id);
 CREATE INDEX IF NOT EXISTS idx_breakdowns_started_at ON public.breakdowns(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_services_service_date ON public.services(service_date DESC);
+
+
+-- RLS is only meaningful as an active-account gate when the gate is RESTRICTIVE.
+-- Earlier "active_fleet_account_required" policies were permissive and could
+-- be overridden by an OR-true SELECT policy, allowing suspended users to read.
+-- Add additional restrictive policies without dropping existing role policies.
+DO $apply$ DECLARE tbl text; BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'alert_contacts','app_settings','audit_log','breakdown_media',
+    'breakdown_photos','breakdowns','machine_production_clocks','machines',
+    'profiles','service_photos','services','temporary_access_grants'
+  ] LOOP
+    EXECUTE format(
+      'CREATE POLICY fleet_active_account_guard ON public.%I AS RESTRICTIVE FOR ALL TO authenticated USING(public.is_active_fleet_user()) WITH CHECK(public.is_active_fleet_user())',
+      tbl
+    );
+  END LOOP;
+END $apply$;
