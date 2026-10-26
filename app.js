@@ -583,7 +583,100 @@ function bind(){
  document.querySelectorAll(".breakdownEvidence").forEach(element=>element.onclick=()=>attachBreakdownEvidence(element.dataset.id));
  if(S.view==="audit")loadAudit();
 }
-function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Name</label><input name="name" required></div><div><label>Fleet ID</label><input name="fleet_id" required></div><div><label>Model</label><input name="model"></div><div><label>Site</label><input name="site"></div><div><label>Hours</label><input name="hours" type="number" value="0"></div><div><label>Status</label><select name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',async f=>{let {error}=await db.rpc("create_machine",{p_name:f.get("name"),p_fleet_id:f.get("fleet_id"),p_model:f.get("model"),p_site:f.get("site"),p_hours:Number(f.get("hours")||0),p_status:f.get("status"),p_service_interval_hours:500,p_service_warning_hours:50});if(error)throw error;$("modalRoot").innerHTML="";toast("Machine added");load()})}function addBreakdown(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join(""),pe=S.people.filter(p=>p.active).map(p=>'<option value="'+p.id+'">'+esc(p.full_name||p.username)+" · "+esc(p.role)+"</option>").join("");modal("Report breakdown",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Problem</label><select name="reason"><option>Engine</option><option>Hydraulic</option><option>Electrical</option><option>Tyre / Track</option><option>Cooling system</option><option>Transmission</option><option>Other</option></select><label>Technician</label><select name="assigned_to"><option value="">Unassigned</option>'+pe+'</select><label>Notes</label><textarea name="notes" rows="4"></textarea>',async f=>{let {error}=await db.rpc("report_breakdown",{p_machine_id:f.get("machine_id"),p_reason:f.get("reason"),p_notes:f.get("notes"),p_assigned_to:f.get("assigned_to")||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Breakdown reported");load()})}function addService(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+Number(m.hours||0)+"h</option>").join("");modal("Log service",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Hour reading</label><input name="hours" type="number" min="0" step=".1" required><label>Work completed</label><textarea name="work" rows="4" required></textarea><label>Notes</label><textarea name="notes" rows="3"></textarea><label>Photos of work done <span class="muted">(optional)</span></label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple><div class="muted">Add up to 8 photos. These are stored with the service record.</div>',async f=>{let files=Array.from(f.getAll("photos")||[]).filter(x=>x&&x.size).slice(0,8);let {data,error}=await db.rpc("log_service",{p_machine_id:f.get("machine_id"),p_work_completed:f.get("work"),p_hour_reading:Number(f.get("hours")),p_notes:f.get("notes")});if(error)throw error;let serviceId=data?.id||data;if(!serviceId)throw new Error("Service was logged but no service ID was returned, so photos could not be attached.");for(let file of files){let safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_"),path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;let up=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;let ins=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});if(ins.error)throw ins.error}$("modalRoot").innerHTML="";toast(files.length?"Service logged with "+files.length+" photo"+(files.length===1?"":"s"):"Service logged");load()})}function editMachine(id){
+function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Name</label><input name="name" required></div><div><label>Fleet ID</label><input name="fleet_id" required></div><div><label>Model</label><input name="model"></div><div><label>Site</label><input name="site"></div><div><label>Hours</label><input name="hours" type="number" value="0"></div><div><label>Status</label><select name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',async f=>{let {error}=await db.rpc("create_machine",{p_name:f.get("name"),p_fleet_id:f.get("fleet_id"),p_model:f.get("model"),p_site:f.get("site"),p_hours:Number(f.get("hours")||0),p_status:f.get("status"),p_service_interval_hours:500,p_service_warning_hours:50});if(error)throw error;$("modalRoot").innerHTML="";toast("Machine added");load()})}function validPhotoFiles(files){
+ const selected=Array.from(files||[]).filter(x=>x&&x.size);
+ if(selected.length>5)throw new Error("Select no more than 5 photos per upload.");
+ const types=["image/jpeg","image/png","image/webp","image/heic","image/gif"];
+ for(const file of selected){
+  if(!types.includes(file.type))throw new Error("Only JPG, PNG, WebP, HEIC or GIF photos are supported.");
+  if(file.size>8*1024*1024)throw new Error("Each photo must be 8 MB or smaller.");
+ }
+ return selected;
+}
+async function uploadBreakdownPhotos(id,files){
+ const selected=validPhotoFiles(files);
+ let uploaded=0,failed=0;
+ for(const file of selected){
+   const cleaned=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,95);
+   const path="breakdowns/"+id+"/"+crypto.randomUUID()+"_"+cleaned;
+   const result=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});
+   if(result.error){failed++;continue}
+   const linked=await db.from("breakdown_photos").insert({breakdown_id:id,storage_path:path});
+   if(linked.error){
+     failed++;
+     await db.storage.from("fleet-evidence").remove([path]).catch(()=>{});
+   }else uploaded++;
+ }
+ return {uploaded,failed};
+}
+function breakdownUploadText(result){
+ if(!result)return "Breakdown recorded.";
+ return result.failed
+  ?result.uploaded+" photo(s) saved; "+result.failed+" could not upload. Use Attach photos to retry missing evidence."
+  :result.uploaded+" breakdown photo(s) saved.";
+}
+function addBreakdown(){
+ const mo=S.m.map(m=>'<option value="'+esc(m.id)+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join("");
+ const people=S.people.filter(p=>p.active).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.full_name||p.username)+" · "+esc(p.role)+"</option>").join("");
+ const assign=mgr()?'<label>Assigned technician</label><select name="assigned_to"><option value="">Unassigned</option>'+people+'</select>'
+ :'<p class="muted">A foreman or manager can assign the technician after you report the issue.</p>';
+ modal("Report breakdown",
+  '<label>Machine</label><select name="machine_id" required>'+mo+'</select>'+
+  '<label>Problem</label><select name="reason"><option>Engine</option><option>Hydraulic</option><option>Electrical</option><option>Tyre / Track</option><option>Cooling system</option><option>Transmission</option><option>Other</option></select>'+
+  assign+'<label>Notes</label><textarea name="notes" rows="4" placeholder="Symptoms, location and safety concerns"></textarea>'+
+  '<label>Photo evidence (optional)</label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple>'+
+  '<p class="muted">Up to 5 photos, maximum 8 MB each. You can also attach photos later.</p>',
+  async form=>{
+   const files=validPhotoFiles(form.getAll("photos"));
+   const {data,error}=await db.rpc("report_breakdown",{
+     p_machine_id:form.get("machine_id"),p_reason:form.get("reason"),
+     p_notes:form.get("notes"),p_assigned_to:mgr()?(form.get("assigned_to")||null):null
+   });
+   if(error)throw error;
+   // Do not re-submit the successful breakdown if some evidence uploads fail.
+   let evidence={uploaded:0,failed:0};
+   if(files.length){
+     try{evidence=await uploadBreakdownPhotos(data,files)}
+     catch(_){evidence={uploaded:0,failed:files.length}}
+   }
+   $("modalRoot").innerHTML="";
+   toast(files.length?("Breakdown reported. "+breakdownUploadText(evidence)):"Breakdown reported");
+   await load();
+  });
+}
+function assignBreakdown(id){
+ if(!mgr())return toast("Management permission required to assign a repair.",true);
+ const b=S.b.find(x=>x.id===id);
+ if(!b||b.resolved_at)return toast("This breakdown is no longer open.",true);
+ const employees=S.people.filter(p=>p.active).map(p=>
+  '<option value="'+esc(p.id)+'"'+(b.assigned_to===p.id?' selected':'')+'>'+esc(p.full_name||p.username)+' · '+esc(p.role)+'</option>').join("");
+ modal("Assign technician",'<p class="muted">'+esc(getMachine(b.machine_id))+' — '+esc(b.reason)+'</p>'+
+ '<label>Employee responsible for repair</label><select name="technician"><option value="">Unassigned</option>'+employees+'</select>',
+ async form=>{
+  const {error}=await db.rpc("assign_breakdown",{p_breakdown_id:id,p_assigned_to:form.get("technician")||null});
+  if(error)throw error;
+  $("modalRoot").innerHTML="";
+  toast("Technician assignment saved");
+  await load();
+ });
+}
+function attachBreakdownEvidence(id){
+ const b=S.b.find(x=>x.id===id);
+ if(!b||!canUploadBreakdownPhoto(b))return toast("You cannot attach evidence to this breakdown.",true);
+ modal("Attach breakdown photos",
+  '<p class="muted">'+esc(getMachine(b.machine_id))+' — '+esc(b.reason)+'</p>'+
+  '<label>Choose photos</label><input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple required>'+
+  '<p class="muted">Up to 5 photos per upload, maximum 8 MB each. Originals remain in private storage.</p>',
+  async form=>{
+   const files=validPhotoFiles(form.getAll("photos"));
+   if(!files.length)throw new Error("Choose at least one photo.");
+   const result=await uploadBreakdownPhotos(id,files);
+   $("modalRoot").innerHTML="";
+   toast(breakdownUploadText(result),result.failed>0);
+   await load();
+  });
+}
+function addService(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+Number(m.hours||0)+"h</option>").join("");modal("Log service",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Hour reading</label><input name="hours" type="number" min="0" step=".1" required><label>Work completed</label><textarea name="work" rows="4" required></textarea><label>Notes</label><textarea name="notes" rows="3"></textarea><label>Photos of work done <span class="muted">(optional)</span></label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple><div class="muted">Add up to 8 photos. These are stored with the service record.</div>',async f=>{let files=Array.from(f.getAll("photos")||[]).filter(x=>x&&x.size).slice(0,8);let {data,error}=await db.rpc("log_service",{p_machine_id:f.get("machine_id"),p_work_completed:f.get("work"),p_hour_reading:Number(f.get("hours")),p_notes:f.get("notes")});if(error)throw error;let serviceId=data?.id||data;if(!serviceId)throw new Error("Service was logged but no service ID was returned, so photos could not be attached.");for(let file of files){let safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_"),path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;let up=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;let ins=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});if(ins.error)throw ins.error}$("modalRoot").innerHTML="";toast(files.length?"Service logged with "+files.length+" photo"+(files.length===1?"":"s"):"Service logged");load()})}function editMachine(id){
   const m=S.m.find(x=>x.id===id);
   if(!m)return;
   const current=Number(m.hours||0);
