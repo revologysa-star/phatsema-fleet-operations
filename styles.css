@@ -54,3 +54,36 @@ body.dark .audit-item{background:#ffffff04}
  .people-table td .manageAccess{width:auto;max-width:100%}
  .access-current{align-items:flex-start;flex-wrap:wrap}
 }
+
+
+/* Adaptive Phatsema logo: blend the original white-background artwork into
+   the light header; invert it for high-contrast white artwork on dark navy. */
+.top-brand{min-width:0;gap:13px}
+.top-brand>div{min-width:0}
+.top-brand>div>strong{display:block;letter-spacing:.075em}
+.logo-image{transition:filter .22s ease,opacity .22s ease}
+.top-brand .top-logo{width:190px;height:54px;max-height:54px;max-width:min(38vw,190px);object-fit:contain;object-position:left center;mix-blend-mode:multiply;flex:0 1 190px}
+.top-brand .subbrand{letter-spacing:.13em}
+body.dark .top{background:linear-gradient(100deg,#081a2b 0%,#07131f 58%,#091a2b 100%);border-bottom-color:#69b8ee25}
+body.dark .top-brand{position:relative;isolation:isolate}
+body.dark .top-brand::before{content:"";position:absolute;z-index:-1;left:-10px;top:-8px;width:min(235px,47vw);height:calc(100% + 16px);border-radius:16px;background:radial-gradient(ellipse at 38% 50%,rgba(31,133,205,.20),transparent 72%);pointer-events:none}
+body.dark .top-brand .top-logo{filter:invert(1) hue-rotate(180deg) brightness(1.24) contrast(1.35);mix-blend-mode:screen}
+body.dark .top-brand>div>strong{color:#f7fbff;text-shadow:0 1px 12px rgba(64,160,224,.16)}
+body.dark .top-brand .subbrand{color:#f3c955}
+body.dark .brand-lockup .logo-image{filter:invert(1) hue-rotate(180deg) brightness(1.24) contrast(1.35);mix-blend-mode:screen}
+body.dark .brand-lockup{isolation:isolate}
+body.dark .brand-lockup .brand-word{color:#f4f9fd}
+@media(max-width:620px){
+ .top-brand{gap:8px;flex:1;min-width:0}
+ .top-brand .top-logo{width:clamp(95px,27vw,155px);max-width:27vw;height:42px;max-height:42px;flex:0 1 auto}
+ .top-brand>div>strong{font-size:10px;letter-spacing:.04em}
+ .top-brand .subbrand{font-size:6px;letter-spacing:.04em}
+ .top span#userBadge{font-size:9px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media(max-width:380px){
+ .top-brand .top-logo{width:94px;max-width:25vw}
+ .top-brand .subbrand{display:none}
+ .top span#userBadge{max-width:100px}
+ .top-actions{gap:4px}
+ .top-actions .secondary{padding:8px 7px;font-size:10px}
+}
