@@ -1,5 +1,5 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.76.1';
 
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'content-type':'application/json'}});
@@ -41,7 +41,7 @@ Deno.serve(async(req)=>{
     for(const m of (candidates||[])){
       const {data:latestService}=await admin.from('services').select('service_date,created_at,hour_reading').eq('machine_id',m.machine_id).order('service_date',{ascending:false}).order('created_at',{ascending:false}).limit(1).maybeSingle();
       const {data:previousAlert}=await admin.from('audit_log').select('created_at').eq('action','whatsapp_service_hours_alert_sent').eq('entity_type','machine').eq('entity_id',m.machine_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
-      if(previousAlert&&latestService?.created_at&&new Date(previousAlert.created_at)>=new Date(latestService.created_at)){results.push({machine_id:m.machine_id,skipped:'already alerted for current service cycle'});continue;}
+      if(previousAlert&&(!latestService?.created_at||new Date(previousAlert.created_at)>=new Date(latestService.created_at))){results.push({machine_id:m.machine_id,skipped:'already alerted for current service cycle'});continue;}
       const message=`PHATSEMA FLEET SERVICE ALERT\n\nMachine: ${m.machine_name}\nFleet ID: ${m.fleet_id||''}\nCurrent hours: ${m.current_hours}\nService due at: ${m.service_due_hours} hours\nAlert threshold: ${m.alert_at_hours} hours\n\nThe machine has reached its configured service warning threshold. Please arrange service in Phatsema Fleet Operations.`;
       const response=await send(message); const out=await response.json().catch(()=>({}));
       if(!response.ok){results.push({machine_id:m.machine_id,sent:false,error:out?.error?.message||'WhatsApp API rejected the message'});continue;}
