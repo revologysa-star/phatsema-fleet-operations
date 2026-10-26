@@ -1,4 +1,4 @@
-name: Phatsema options and tests
+name: Validate Phatsema UI and permissions
 on:
   push:
     branches: [main]
@@ -7,26 +7,23 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate clean application
-        shell: bash
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validate application and PWA
         run: |
-          test -f index.html
-          test -f app.js
-          test -f styles.css
-          grep -q 'type="module" src="./app.js"' index.html
+          node --check app.js
+          node --check sw.js
+          node --check pwa-install.js
+          node --test tests/*.test.cjs
           grep -q 'id="loginForm"' index.html
-          grep -q 'id="addM"' app.js
-          grep -q 'id="addB"' app.js
-          grep -q 'id="addS"' app.js
-          grep -q 'complete_breakdown' app.js
-          grep -q 'create_machine' app.js
+          grep -q 'manifest.webmanifest' index.html
           grep -q 'report_breakdown' app.js
-          grep -q 'log_service' app.js
-          grep -q 'set_machine_status' app.js
-          grep -q 'retire_machine' app.js
-          grep -q 'id="workingPct"' app.js || true
-          ! grep -q 'PHATSEMA OPTIONS V1' index.html
-          ! grep -q 'PHATSEMA SESSION SYNC V1' index.html
-          echo "Clean application checks passed."
+          grep -q 'complete_breakdown' app.js
