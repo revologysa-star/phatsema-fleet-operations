@@ -202,7 +202,7 @@ function showEmployeeCreated(employee){
   const invited=employee.mode==="invite";
   const details=invited
     ?'<p class="muted">The employee should check their email (including spam), accept the invitation and create a password. Delivery depends on Supabase email settings.</p>'
-    :'<p class="muted">Share the temporary password privately. It will not be displayed again after closing this window.</p>'+
+    :'<p class="muted">Share the temporary password privately. After signing in, the employee can change it under Guide → Change my password. It will not be shown again after closing this window.</p>'+
      '<label for="employeeCreatedPassword">Temporary password</label>'+
      '<div class="employee-password-row"><input type="text" id="employeeCreatedPassword" value="'+esc(employee.password)+'" readonly>'+
      '<button id="employeeCopyPassword" class="secondary" type="button">Copy</button></div>';
@@ -275,6 +275,8 @@ function settings(){let g=k=>S.settings.find(x=>x.key===k)?.value,enabled=g("wha
  '<section class="panel"><h2>Set next service</h2><p>Head of Operations or an employee with temporary <strong>Set Next Service</strong> access can adjust due hours or the due date. This does not modify Current Hours.</p></section>'+
  '<section class="panel"><h2>Correct machine hours</h2><p>The Head of Operations or a temporarily authorized employee can correct a meter reading up or down and must provide a reason. Each correction is recorded in Audit.</p></section>'+
  '<section class="panel"><h2>Temporary access</h2><p>The Head opens <strong>People → Manage access</strong>, selects the permissions, sets an expiry and records a reason. Access can be revoked immediately and otherwise ends automatically at expiry. Permanent roles remain unchanged.</p></section>'+
+ '<section class="panel"><h2>Employee onboarding</h2><p>Head of Operations: open <strong>People → Add employee</strong>, choose the role, and invite by email or create a temporary password. Invitations let employees choose their own password. Temporary passwords must be shared privately.</p></section>'+
+ '<section class="panel"><h2>Your password</h2><p>Change the temporary password after signing in. Use a unique password of at least 12 characters.</p><button type="button" class="primary" id="changeMyPassword">Change my password</button></section>'+
  '</div>';
 }
 function getMachine(id){return S.m.find(x=>x.id===id)?.name||"Unknown"}function modal(title,body,fn){
@@ -379,7 +381,7 @@ function bind(){
   };
  });
  if($("quickBreakdown"))$("quickBreakdown").onclick=addBreakdown;
- if($("quickService"))$("quickService").onclick=addService;
+ if($("quickService"))$("quickService").onclick=addService;if($("changeMyPassword"))$("changeMyPassword").onclick=()=>showPasswordReset(false);
  if($("peopleRefresh"))$("peopleRefresh").onclick=load;if($("addEmployee"))$("addEmployee").onclick=addEmployee;
  document.querySelectorAll(".manageAccess").forEach(element=>element.onclick=()=>manageAccess(element.dataset.id));
  if($("addM"))$("addM").onclick=addMachine;
