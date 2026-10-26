@@ -124,6 +124,100 @@ function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b
   '<div class="panel table-wrap people-table-wrap"><table class="table people-table"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th>'+
   (isHead?'<th>Temporary access</th><th>Actions</th>':"")+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+
+function addEmployee(){
+  if(!realHead()){toast("Only Head of Operations can add employees.",true);return}
+  const html='<div class="employee-form">'+
+    '<p class="muted">Add an employee and choose their role. Head of Operations access is not assigned through this form.</p>'+
+    '<div class="form-grid">'+
+    '<div><label for="newFirst">First name</label><input id="newFirst" name="first_name" maxlength="80" required></div>'+
+    '<div><label for="newSurname">Surname</label><input id="newSurname" name="surname" maxlength="80" required></div>'+
+    '<div><label for="newUsername">Username</label><input id="newUsername" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,31}" autocapitalize="off" autocomplete="off" placeholder="e.g. thabo.m" required></div>'+
+    '<div><label for="newEmail">Employee email</label><input id="newEmail" name="email" type="email" autocomplete="off" maxlength="254" required></div>'+
+    '<div><label for="newWhatsapp">WhatsApp (optional)</label><input id="newWhatsapp" name="whatsapp_number" type="tel" maxlength="25" placeholder="+27 82 123 4567"></div>'+
+    '<div><label for="newRole">Employee role</label><select id="newRole" name="role" required>'+
+    '<option value="assistant_mechanic">Assistant / Mechanic</option>'+
+    '<option value="foreman">Foreman</option>'+
+    '<option value="operations_manager">Operations Manager</option></select></div></div>'+
+    '<div class="employee-method"><label for="newMode">Account setup</label>'+
+    '<select id="newMode" name="mode"><option value="invite">Email invitation (recommended)</option><option value="temporary_password">Temporary password</option></select>'+
+    '<p class="muted" id="newModeHelp">The employee receives an invitation and sets their own password.</p></div>'+
+    '<div class="employee-temp hidden" id="newPasswordFields"><label for="newPassword">Temporary password</label>'+
+    '<div class="employee-password-row"><input id="newPassword" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password">'+
+    '<button id="newGenerate" type="button" class="secondary">Generate</button>'+
+    '<button id="newReveal" type="button" class="secondary">Show</button></div>'+
+    '<p class="muted">Share this password privately and ask the employee to change it.</p></div></div>';
+  modal("Add employee",html,async form=>{
+    if(!realHead())throw new Error("Only Head of Operations can add employees.");
+    const first=String(form.get("first_name")||"").trim();
+    const surname=String(form.get("surname")||"").trim();
+    const email=String(form.get("email")||"").trim().toLowerCase();
+    const username=String(form.get("username")||"").trim().toLowerCase();
+    const role=String(form.get("role")||"");
+    const mode=String(form.get("mode")||"invite");
+    const password=String(form.get("password")||"");
+    const whatsapp=String(form.get("whatsapp_number")||"").trim();
+    if(!first||!surname)throw new Error("Enter a first name and surname.");
+    if(!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username))throw new Error("Username must be 3–32 characters.");
+    if(!["assistant_mechanic","foreman","operations_manager"].includes(role))throw new Error("Select a valid employee role.");
+    if(!["invite","temporary_password"].includes(mode))throw new Error("Invalid account setup method.");
+    if(mode==="temporary_password"&&password.length<12)throw new Error("Temporary password must be at least 12 characters.");
+    const body={first_name:first,surname,email,username,role,mode,whatsapp_number:whatsapp};
+    if(mode==="temporary_password")body.password=password;
+    const {data,error}=await db.functions.invoke("employee-management-v1",{body});
+    if(error){
+      let message=error.message||"Employee creation failed.";
+      if(error.context&&typeof error.context.json==="function"){
+        try{const details=await error.context.json();message=details.error||message}catch(_){}
+      }
+      throw new Error(message);
+    }
+    if(!data?.ok)throw new Error(data?.error||"Employee creation failed.");
+    await load();
+    showEmployeeCreated({...data,first_name:first,surname,password:mode==="temporary_password"?password:""});
+  });
+  const mode=$("newMode"),fields=$("newPasswordFields"),password=$("newPassword"),help=$("newModeHelp");
+  const sync=()=>{
+    const temp=mode.value==="temporary_password";
+    fields.classList.toggle("hidden",!temp);
+    password.required=temp;
+    help.textContent=temp?"The employee can sign in immediately. Share their temporary password privately.":"The employee receives an invitation and sets their own password.";
+    const submit=$("mf")?.querySelector('button[type="submit"]');
+    if(submit)submit.textContent=temp?"Create employee":"Send invitation";
+  };
+  mode.onchange=sync;sync();
+  $("newGenerate").onclick=()=>{
+    const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%&";
+    const bytes=crypto.getRandomValues(new Uint8Array(20));
+    password.value=Array.from(bytes,b=>alphabet[b%alphabet.length]).join("");
+    password.type="text";$("newReveal").textContent="Hide";
+  };
+  $("newReveal").onclick=()=>{
+    const visible=password.type==="text";
+    password.type=visible?"password":"text";
+    $("newReveal").textContent=visible?"Show":"Hide";
+  };
+}
+function showEmployeeCreated(employee){
+  const invited=employee.mode==="invite";
+  const details=invited
+    ?'<p class="muted">The employee should check their email (including spam), accept the invitation and create a password. Delivery depends on Supabase email settings.</p>'
+    :'<p class="muted">Share the temporary password privately. It will not be displayed again after closing this window.</p>'+
+     '<label for="employeeCreatedPassword">Temporary password</label>'+
+     '<div class="employee-password-row"><input type="text" id="employeeCreatedPassword" value="'+esc(employee.password)+'" readonly>'+
+     '<button id="employeeCopyPassword" class="secondary" type="button">Copy</button></div>';
+  $("modalRoot").innerHTML='<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="employeeCreatedTitle">'+
+    '<div class="employee-success-mark">✓</div><h2 id="employeeCreatedTitle">'+(invited?"Invitation requested":"Employee created")+'</h2>'+
+    '<p><strong>'+esc(employee.first_name+" "+employee.surname)+'</strong></p>'+
+    '<p>Username: <strong>'+esc(employee.username)+'</strong></p>'+
+    '<p>Email: <strong>'+esc(employee.email)+'</strong></p>'+
+    details+'<div class="modal-actions"><button id="employeeCreatedDone" class="primary" type="button">Done</button></div></div></div>';
+  $("employeeCreatedDone").onclick=()=>$("modalRoot").innerHTML="";
+  if(!invited)$("employeeCopyPassword").onclick=async()=>{
+    try{await navigator.clipboard.writeText(employee.password);toast("Password copied")}
+    catch(_){$("employeeCreatedPassword").select();toast("Select and copy the password manually.",true)}
+  };
+}
 function manageAccess(userId){
  if(!realHead()||!S.accessReady)return;
  const person=S.people.find(p=>p.id===userId);
