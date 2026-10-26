@@ -489,6 +489,7 @@ async function load(){
  const [m,b,s,ph,bph,pe,se,cl,gr]=results,failed=[];
  function rows(r,label,fallback){
    if(r.status!=="fulfilled"){failed.push(label+": "+(r.reason?.message||"connection failed"));return fallback}
+   if(!r.value){failed.push(label+": no database response received");return fallback}
    if(r.value.error){failed.push(label+": "+r.value.error.message);return fallback}
    return r.value.data||[];
  }
