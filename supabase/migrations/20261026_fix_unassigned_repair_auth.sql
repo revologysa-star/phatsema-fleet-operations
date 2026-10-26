@@ -45,5 +45,4 @@ BEGIN
  END IF;
  RETURN b;
 END;
-$function$
-
+$function$;
