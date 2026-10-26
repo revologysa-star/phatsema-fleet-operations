@@ -66,4 +66,10 @@ begin
   );
 end $setup$;
 
+-- Candidate discovery is server-only, not a browser RPC.
+revoke execute on function public.get_whatsapp_service_alert_candidates()
+from public, anon, authenticated;
+grant execute on function public.get_whatsapp_service_alert_candidates()
+to service_role;
+
 notify pgrst,'reload schema';
