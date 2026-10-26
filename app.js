@@ -807,7 +807,7 @@ function auditFullPrintHTML(rows,snapshot){
 async function fetchCompleteAuditHistory(update){
  if(!realHead())throw new Error("Only the Head of Operations can export the full audit log.");
  const {data:meta,error:metaError}=await db.rpc("audit_export_snapshot");
- if(metaError)throw metaError;
+ if(metaError)throw new Error(metaError.message||String(metaError));
  const snapshot=Array.isArray(meta)?meta[0]:meta;
  if(!snapshot)throw new Error("Audit export metadata was not returned.");
  const expected=Number(snapshot.entry_count),maximum=Number(snapshot.snapshot_max_id);
@@ -819,7 +819,7 @@ async function fetchCompleteAuditHistory(update){
   const {data,error}=await db.rpc("audit_export_page",{
     p_snapshot_max_id:maximum,p_after_id:last,p_limit:limit
   });
-  if(error)throw error;
+  if(error)throw new Error(error.message||String(error));
   const page=Array.isArray(data)?data:[];
   if(!page.length)throw new Error("Audit export incomplete: records changed during download. Please retry.");
   const next=Number(page[page.length-1].id);
