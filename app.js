@@ -106,7 +106,140 @@ function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),fi
  (canNextService()?'<button class="secondary nextService" data-id="'+m.id+'">Next service</button> ':"")+
  (canFleetManage()?'<button class="danger rm" data-id="'+m.id+'">Remove</button>':"")
  :"View")+"</td></tr>"}).join("")||'<tr><td colspan="7" class="empty">No machines.</td></tr>')+"</tbody></table></div>"}
-function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Breakdowns</h1><div class="muted">Report and complete repairs</div></div><button id="addB" class="primary">+ Report issue</button></div><div class="toolbar"><input type="search" id="bq" aria-label="Search breakdowns" placeholder="Search breakdowns" value="'+esc(S.breakdownSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-breakdown-table"><thead><tr><th>Machine</th><th>Problem</th><th>Started</th><th>Status</th><th>Assigned</th><th>Action</th></tr></thead><tbody>'+(a.map(b=>'<tr><td>'+esc(getMachine(b.machine_id))+'</td><td>'+esc(b.reason)+'</td><td>'+fmt(b.started_at)+'</td><td>'+ (b.resolved_at?"Resolved":"Open")+'</td><td>'+esc(name(b.assigned_to))+'</td><td>'+(!b.resolved_at?'<button class="primary repair" data-id="'+b.id+'">Repair complete</button>':esc(b.not_ready_reason||"Resolved"))+"</td></tr>").join("")||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+"</tbody></table></div>"}function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}function people(){
+function breakdowns(){let q=(S.breakdownSearch||"").toLowerCase(),a=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Breakdowns</h1><div class="muted">Report and complete repairs</div></div><button id="addB" class="primary">+ Report issue</button></div><div class="toolbar"><input type="search" id="bq" aria-label="Search breakdowns" placeholder="Search breakdowns" value="'+esc(S.breakdownSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-breakdown-table"><thead><tr><th>Machine</th><th>Problem</th><th>Started</th><th>Status</th><th>Assigned</th><th>Action</th></tr></thead><tbody>'+(a.map(b=>'<tr><td>'+esc(getMachine(b.machine_id))+'</td><td>'+esc(b.reason)+'</td><td>'+fmt(b.started_at)+'</td><td>'+ (b.resolved_at?"Resolved":"Open")+'</td><td>'+esc(name(b.assigned_to))+'</td><td>'+(!b.resolved_at?'<button class="primary repair" data-id="'+b.id+'">Repair complete</button>':esc(b.not_ready_reason||"Resolved"))+"</td></tr>").join("")||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+"</tbody></table></div>"}function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}
+// Management reporting reflects recorded events and a CURRENT fleet snapshot.
+// It must never mislabel current status as historical fleet availability.
+function reportModel(days=S.reportDays||30,now=Date.now()){
+ const from=now-days*86400000;
+ const active=S.m||[];
+ const breakdowns=(S.b||[]).filter(b=>{
+   const started=Date.parse(b.started_at);
+   const resolved=b.resolved_at?Date.parse(b.resolved_at):now;
+   return Number.isFinite(started)&&Number.isFinite(resolved)&&started<=now&&resolved>=from;
+ });
+ const services=(S.s||[]).filter(x=>{
+   const when=Date.parse(x.service_date||x.created_at);
+   return Number.isFinite(when)&&when>=from&&when<=now;
+ });
+ const downtimeMinutes=b=>{
+   const start=Date.parse(b.started_at);
+   const stop=b.resolved_at?Date.parse(b.resolved_at):now;
+   if(!Number.isFinite(start)||!Number.isFinite(stop))return 0;
+   return Math.max(0,Math.min(stop,now)-Math.max(start,from))/60000;
+ };
+ const rows=active.map(m=>{
+   const breaks=breakdowns.filter(b=>b.machine_id===m.id);
+   const serviced=services.filter(x=>x.machine_id===m.id);
+   const minutes=breaks.reduce((n,b)=>n+downtimeMinutes(b),0);
+   return {
+     machine:m.name||m.fleet_id||"Unknown",fleet_id:m.fleet_id||"",
+     site:m.site||"Not specified",status:norm(m.status)||"unknown",
+     hours:Number(m.hours||0),
+     breakdowns:breaks.filter(b=>Date.parse(b.started_at)>=from).length,
+     open:breaks.filter(b=>!b.resolved_at).length,
+     downtime_minutes:Math.round(minutes),
+     services:serviced.length,
+     service_due:serviceSchedule(m).due?"Due":"Not due"
+   };
+ });
+ const totalDowntime=rows.reduce((sum,r)=>sum+r.downtime_minutes,0);
+ const summary={
+   machines:rows.length,
+   working:rows.filter(r=>r.status==="working").length,
+   breakdown:rows.filter(r=>r.status==="breakdown").length,
+   open:breakdowns.filter(b=>!b.resolved_at).length,
+   breakdowns:breakdowns.filter(b=>Date.parse(b.started_at)>=from).length,
+   serviceCount:services.length,
+   due:rows.filter(r=>r.service_due==="Due").length,
+   downtimeHours:Number((totalDowntime/60).toFixed(1))
+ };
+ return {days,from,now,rows,breakdowns,services,summary,downtimeMinutes};
+}
+function reports(){
+ if(!mgr())return '<div class="panel"><h2>Management access required</h2></div>';
+ const r=reportModel(),summary=r.summary;
+ const start=new Date(r.from).toLocaleDateString();
+ const end=new Date(r.now).toLocaleDateString();
+ const kpi=(label,value,small)=>'<div class="report-stat"><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong><span>'+esc(small)+'</span></div>';
+ const table=r.rows.slice().sort((a,b)=>b.downtime_minutes-a.downtime_minutes).map(m=>
+  '<tr><td>'+esc(m.machine)+'<small>'+esc(m.fleet_id)+'</small></td>'+
+  '<td>'+esc(m.site)+'</td><td>'+esc(m.status)+'</td>'+
+  '<td>'+m.breakdowns+'</td><td>'+m.open+'</td>'+
+  '<td>'+Number(m.downtime_minutes/60).toFixed(1)+'</td><td>'+m.services+'</td>'+
+  '<td>'+esc(m.service_due)+'</td></tr>').join("");
+ return '<div class="report-page">'+
+ '<div class="page-head"><div><h1>Management reports</h1><p class="muted">Recorded maintenance and breakdowns · Current fleet snapshot</p></div></div>'+
+ '<div class="report-toolbar"><div><label for="reportPeriod">Reporting period</label><select id="reportPeriod">'+
+ [7,30,90].map(n=>'<option value="'+n+'" '+(r.days===n?'selected':'')+'>Last '+n+' days</option>').join("")+
+ '</select></div><button id="reportPrint" type="button" class="primary">Print / Save as PDF</button></div>'+
+ '<div class="report-print-title"><strong>Phatsema Fleet Operations</strong><span>Management report · '+esc(start)+' — '+esc(end)+'</span></div>'+
+ '<div class="report-stats">'+
+ kpi("Fleet online now",summary.working+"/"+summary.machines,"Current working status")+
+ kpi("Open breakdowns",summary.open,"Currently unresolved")+
+ kpi("Reported breakdowns",summary.breakdowns,"Started within selected period")+
+ kpi("Recorded downtime",summary.downtimeHours+" h","Overlapping selected period")+
+ kpi("Services logged",summary.serviceCount,"Within selected period")+
+ kpi("Service overdue",summary.due,"Current service schedule")+
+ '</div>'+
+ '<div class="panel report-table-panel"><div class="report-table-title"><div><h2>Machine performance summary</h2><p class="muted">Breakdown hours cover recorded periods only. Current machine status is not a historical availability percentage.</p></div>'+
+ '<button type="button" class="secondary reportExport" data-report="summary">Export summary CSV</button></div>'+
+ '<div class="table-wrap"><table class="table report-table"><thead><tr><th>Machine</th><th>Site</th><th>Current status</th><th>New breakdowns</th><th>Open</th><th>Downtime (h)</th><th>Services</th><th>Due</th></tr></thead><tbody>'+
+ (table||'<tr><td colspan="8" class="empty">No machines found.</td></tr>')+
+ '</tbody></table></div></div>'+
+ '<div class="report-export-grid">'+ '<div class="panel"><h3>Breakdown history</h3><p class="muted">Export date, machine, problem, assignment, repair outcome and time recorded in this period.</p><button class="secondary reportExport" data-report="breakdowns">Export breakdown CSV</button></div>'+
+ '<div class="panel"><h3>Service history</h3><p class="muted">Export service date, machine, meter reading and work completed in this period.</p><button class="secondary reportExport" data-report="services">Export service CSV</button></div></div>'+
+ '<p class="report-disclaimer">Generated '+esc(new Date(r.now).toLocaleString())+
+ '. Source: recorded machine, breakdown and service data. Production time is estimated from recorded machine status, not physical machine telemetry. Downtime and fleet counts require operational verification.</p>'+
+ '</div>';
+}
+// Neutralizes CSV formula injection in spreadsheets without corrupting numbers.
+function reportCsvCell(value){
+ let t=String(value==null?"":value);
+ if(/^[\s\x00-\x1f]*[=+\-@]/.test(t))t="'"+t;
+ return '"'+t.replace(/"/g,'""')+'"';
+}
+function reportCSV(rows){
+ return "\ufeff"+rows.map(row=>row.map(reportCsvCell).join(",")).join("\r\n")+"\r\n";
+}
+function reportExportData(type,period=reportModel()){
+ const {rows,breakdowns,services,downtimeMinutes}=period;
+ if(type==="summary")return [
+  ["Machine","Fleet ID","Site","Current status","Hour reading","Breakdowns started","Open breakdowns","Recorded downtime hours","Services","Service due"],
+  ...rows.map(x=>[x.machine,x.fleet_id,x.site,x.status,x.hours,x.breakdowns,x.open,
+    (x.downtime_minutes/60).toFixed(1),x.services,x.service_due])
+ ];
+ if(type==="breakdowns")return [
+  ["Machine","Started","Resolved","Status","Reason","Assigned to","Reported by","Downtime hours in period","Repair notes","Not ready reason"],
+  ...breakdowns.map(b=>[getMachine(b.machine_id),b.started_at,b.resolved_at||"",
+    b.resolved_at?"Resolved":"Open",b.reason||"",name(b.assigned_to),
+    name(b.reported_by),(downtimeMinutes(b)/60).toFixed(2),b.repair_notes||"",b.not_ready_reason||""])
+ ];
+ if(type==="services")return [
+  ["Machine","Date","Meter reading","Work completed","Notes","Logged by"],
+  ...services.map(s=>[getMachine(s.machine_id),s.service_date||s.created_at,
+    s.hour_reading,s.work_completed||"",s.notes||"",name(s.recorded_by)])
+ ];
+ throw new Error("Unknown report type.");
+}
+function exportFleetReport(event){
+ if(!mgr())return toast("Management access required",true);
+ const type=event?.currentTarget?.dataset?.report||"summary";
+ try{
+  const content=reportCSV(reportExportData(type));
+  const file=new Blob([content],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(file);
+  const anchor=document.createElement("a");
+  anchor.href=url;
+  anchor.download="phatsema-"+type+"-last-"+(S.reportDays||30)+"-days.csv";
+  anchor.style.display="none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  toast("CSV report downloaded");
+ }catch(e){toast("Report export failed: "+(e.message||String(e)),true)}
+}
+function people(){
  const isHead=realHead();
  const rows=(S.people||[]).map(p=>{
    const grants=activeGrants(p.id);
@@ -402,7 +535,7 @@ function bind(){
  if($("save"))$("save").onclick=saveSettings;
  if($("ar"))$("ar").onclick=loadAudit;
  if($("reportPeriod"))$("reportPeriod").onchange=event=>{S.reportDays=Number(event.target.value)||30;render()};
- if($("reportExport"))$("reportExport").onclick=exportFleetReport;
+ document.querySelectorAll(".reportExport").forEach(btn=>btn.onclick=exportFleetReport);
  if($("reportPrint"))$("reportPrint").onclick=()=>window.print();
  if($("auditSearch"))$("auditSearch").oninput=renderAudit;
  if($("auditAction"))$("auditAction").onchange=renderAudit;
