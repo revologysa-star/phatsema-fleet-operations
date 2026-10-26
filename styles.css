@@ -87,3 +87,60 @@ body.dark .brand-lockup .brand-word{color:#f4f9fd}
  .top-actions{gap:4px}
  .top-actions .secondary{padding:8px 7px;font-size:10px}
 }
+
+
+/* Mobile-first operational header: keep the fleet screen usable on Android,
+   including browsers configured to request a wider desktop viewport. */
+html,body{max-width:100%;overflow-x:clip}
+.shell{min-width:0}
+.shell>main{min-width:0;overflow-wrap:anywhere}
+.top{min-width:0;gap:14px}
+.top-brand{min-width:0;flex:1}
+.top-brand>div{flex:0 1 auto}
+.top-brand .top-logo{display:block;max-width:100%;object-fit:contain}
+.top-actions{flex-shrink:0}
+.table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.page-head,.panel,.card{min-width:0}
+body.dark .top-brand{isolation:auto}
+body.dark .top-brand::before{z-index:0;opacity:.45}
+body.dark .top-brand>*{position:relative;z-index:1}
+body.dark .top-brand .top-logo{mix-blend-mode:screen;filter:brightness(1.4) contrast(1.45)}
+body.dark .brand-lockup .logo-image{mix-blend-mode:screen;filter:brightness(1.35) contrast(1.4)}
+/* Tablet and phones: navigation becomes a horizontal, swipeable tab strip. */
+@media(max-width:1199px){
+ .shell{display:flex;flex-direction:column;min-height:calc(100dvh - 70px)}
+ .shell>aside{position:sticky;top:70px;z-index:9;display:block;flex:none;width:100%;min-width:0;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);background:var(--surface)}
+ body.dark .shell>aside{background:#081725}
+ .shell>aside nav{position:static;display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .shell>aside nav button{flex:0 0 auto;white-space:nowrap;padding:11px 14px;border-radius:10px}
+ .shell>main{width:100%;max-width:100%;padding:20px 16px;min-height:0}
+ .top{padding:9px 16px}
+ .top-brand .top-logo{width:clamp(112px,20vw,175px);max-width:30vw;height:46px}
+ .top span#userBadge{max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media(max-width:650px){
+ .top{height:auto;min-height:68px;gap:7px;padding:8px 12px}
+ .top-brand{gap:9px}
+ .top-brand .top-logo{width:clamp(100px,26vw,142px);max-width:29vw;height:43px;flex:0 0 auto}
+ .top-brand>div>strong{font-size:11px;line-height:1.25;letter-spacing:.035em}
+ .top-brand .subbrand{font-size:6px;line-height:1.35;letter-spacing:.04em}
+ .top span#userBadge{display:none}
+ .top-actions{gap:6px}
+ .top-actions .secondary{padding:9px 10px;font-size:11px;white-space:nowrap}
+ .shell>aside{top:68px;padding:7px 10px}
+ .shell>main{padding:16px 12px}
+ .page-head h1{font-size:26px;line-height:1.2}
+ .page-head .muted{font-size:13px}
+ .panel{padding:14px;margin-top:12px}
+ .table th,.table td{padding:10px 9px}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .card{padding:14px}
+ .metric{font-size:29px}
+}
+@media(max-width:400px){
+ .top-brand .top-logo{width:98px;max-width:29vw}
+ .top-brand>div>strong{font-size:10px}
+ .top-brand .subbrand{display:none}
+ .top-actions .secondary{padding:8px;font-size:10px}
+ .grid{grid-template-columns:1fr}
+}
