@@ -1,32 +1,59 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-Deno.serve(async (req) => {
-  try {
-    const auth = req.headers.get('Authorization') || '';
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {global:{headers:{Authorization:auth}}});
-    const {data:{user}} = await userClient.auth.getUser();
-    if (!user) return new Response(JSON.stringify({error:'Authentication required.'}),{status:401,headers:{'Content-Type':'application/json'}});
-    const {data:actor} = await admin.from('profiles').select('role,active').eq('id',user.id).single();
-    if (!actor?.active || !['operations_manager','head_of_operations'].includes(actor.role)) return new Response(JSON.stringify({error:'Management permission required.'}),{status:403,headers:{'Content-Type':'application/json'}});
-    const body = await req.json();
-    if (body.action === 'create') {
-      if (!body.email || !body.password || !body.username || !body.full_name) throw new Error('Name, username, email and password are required.');
-      const {data:created,error:e} = await admin.auth.admin.createUser({email:body.email,password:body.password,email_confirm:true});
-      if (e) throw e;
-      const {error:p} = await admin.from('profiles').insert({id:created.user.id,email:body.email,username:body.username.trim(),full_name:body.full_name.trim(),role:body.role,active:body.active!==false});
-      if (p) { await admin.auth.admin.deleteUser(created.user.id); throw p; }
-      await admin.from('audit_log').insert({actor_id:user.id,action:'create_user',entity_type:'profile',entity_id:created.user.id,details:{username:body.username,role:body.role}});
-      return new Response(JSON.stringify({ok:true}),{headers:{'Content-Type':'application/json'}});
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
+
+const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json"}});
+
+Deno.serve(async(req:Request)=>{
+  if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
+  try{
+    const authHeader=req.headers.get('Authorization');
+    if(!authHeader) return json({error:'Authentication required'},401);
+    const userClient=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:authHeader}}});
+    const {data:{user},error:userError}=await userClient.auth.getUser();
+    if(userError||!user) return json({error:'Invalid session'},401);
+    const {data:actor}=await userClient.from('profiles').select('role,active').eq('id',user.id).single();
+    if(!actor?.active || actor.role!=='head_of_operations') return json({error:'Management permission required'},403);
+
+    const body=await req.json();
+    const adminKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const admin=createClient(Deno.env.get('SUPABASE_URL')!,adminKey);
+
+    if(req.method==='POST'){
+      const {action='create',email,password,full_name,username,role='assistant_mechanic',active=true,user_id}=body;
+      if(action==='create'){
+        if(!email||!password||!full_name||!username) return json({error:'email, password, full_name and username are required'},400);
+        if(!['assistant_mechanic','foreman','operations_manager'].includes(role)) return json({error:'Invalid role'},400);
+        if(actor.role!=='head_of_operations' && role==='head_of_operations') return json({error:'Only Head of Operations can create another Head of Operations'},403);
+        const {data:created,error}=await admin.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{full_name,username}});
+        if(error) return json({error:error.message},400);
+        const id=created.user?.id;
+        if(!id) return json({error:'User creation returned no id'},500);
+        const {error:profileError}=await admin.from('profiles').update({full_name,username,role,active,updated_at:new Date().toISOString()}).eq('id',id);
+        if(profileError) return json({error:profileError.message},500);
+        await admin.from('audit_log').insert({actor_id:user.id,action:'create_user',entity_type:'profile',entity_id:id,details:{username,role}});
+        return json({ok:true,user_id:id});
+      }
+      if(action==='update' && user_id){
+        if(!['assistant_mechanic','foreman','operations_manager'].includes(role))return json({error:'Invalid role'},400);
+        const {data:subject,error:lookupError}=await admin.from('profiles').select('role').eq('id',user_id).maybeSingle();
+        if(lookupError||!subject)return json({error:'Employee not found'},404);
+        if(subject.role==='head_of_operations')return json({error:'Head role cannot be changed in legacy endpoint'},403);
+        const {error}=await admin.from('profiles').update({full_name,username,role,active,updated_at:new Date().toISOString()}).eq('id',user_id);
+        if(error) return json({error:error.message},400);
+        if(password) { const {error:e}=await admin.auth.admin.updateUserById(user_id,{password}); if(e) return json({error:e.message},400); }
+        await admin.from('audit_log').insert({actor_id:user.id,action:'update_user',entity_type:'profile',entity_id:user_id,details:{username,role,active}});
+        return json({ok:true});
+      }
+      if(action==='disable' && user_id){
+        const {data:subject}=await admin.from('profiles').select('role').eq('id',user_id).maybeSingle();
+        if(!subject||subject.role==='head_of_operations')return json({error:'Cannot disable Head of Operations through this endpoint'},403);
+        const {error}=await admin.from('profiles').update({active:false,updated_at:new Date().toISOString()}).eq('id',user_id);
+        if(error) return json({error:error.message},400);
+        await admin.from('audit_log').insert({actor_id:user.id,action:'disable_user',entity_type:'profile',entity_id:user_id,details:{}});
+        return json({ok:true});
+      }
     }
-    if (body.action === 'update') {
-      if (!body.user_id) throw new Error('User ID required.');
-      const patch:any={email:body.email,username:body.username.trim(),full_name:body.full_name.trim(),role:body.role,active:body.active!==false,updated_at:new Date().toISOString()};
-      const {error:p} = await admin.from('profiles').update(patch).eq('id',body.user_id); if(p) throw p;
-      if (body.password) { const {error:e}=await admin.auth.admin.updateUserById(body.user_id,{password:body.password,email:body.email}); if(e) throw e; }
-      else { const {error:e}=await admin.auth.admin.updateUserById(body.user_id,{email:body.email}); if(e) throw e; }
-      await admin.from('audit_log').insert({actor_id:user.id,action:'update_user',entity_type:'profile',entity_id:body.user_id,details:{username:body.username,role:body.role,active:body.active}});
-      return new Response(JSON.stringify({ok:true}),{headers:{'Content-Type':'application/json'}});
-    }
-    throw new Error('Unsupported action.');
-  } catch (e) { return new Response(JSON.stringify({error:e instanceof Error?e.message:'User operation failed.'}),{status:400,headers:{'Content-Type':'application/json'}}); }
+    return json({error:'Unsupported request'},400);
+  }catch(e){ return json({error:e instanceof Error?e.message:'Unexpected error'},500); }
 });
