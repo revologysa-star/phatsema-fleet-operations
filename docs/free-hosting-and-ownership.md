@@ -20,6 +20,11 @@ bash scripts/build-static.sh
 
 The generated `dist/` folder contains `index.html`, `app.js`, `styles.css`, `pwa-install.js`, `sw.js`, `manifest.webmanifest`, icon PNGs and `_headers` for deployment. **Publish only `dist/`.** Do not publish `.env`, secrets, database backups, migrations, Supabase Edge Functions, or employee information.
 
+### No-code alternative: download a prepared ZIP
+
+Every `main` update runs the GitHub Actions **Downloadable Phatsema Static App** workflow. In the GitHub repository, open **Actions → Downloadable Phatsema Static App → latest successful run → Artifacts → phatsema-installable-static-site**. Download the ZIP and upload it in Cloudflare Pages **Direct Upload**. This bundle contains public static app files only; it never includes the Supabase database, client data, or backend secrets.
+
+The downloadable artifact expires after 30 days, but the source stays in GitHub and the workflow can build a fresh ZIP whenever needed. The ZIP is a website deployment package, **not** an Android APK. When deployed under HTTPS, the site prompts Chrome to install it as a PWA.
 ### Deploy with Cloudflare Pages
 
 1. Sign in at https://dash.cloudflare.com/ and select **Workers & Pages → Create application → Pages → Connect to Git**.
