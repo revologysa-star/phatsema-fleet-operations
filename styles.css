@@ -106,8 +106,9 @@ body.dark .top-brand::before{z-index:0;opacity:.45}
 body.dark .top-brand>*{position:relative;z-index:1}
 body.dark .top-brand .top-logo{mix-blend-mode:screen;filter:brightness(1.4) contrast(1.45)}
 body.dark .brand-lockup .logo-image{mix-blend-mode:screen;filter:brightness(1.35) contrast(1.4)}
-/* Tablet and phones: navigation becomes a horizontal, swipeable tab strip. */
-@media(max-width:1199px){
+/* Tablet and phones: navigation becomes a horizontal, swipeable tab strip.
+   A coarse pointer catches Android 'Desktop site' when its reported CSS viewport is wide. */
+@media(max-width:1199px), (pointer:coarse){
  .shell{display:flex;flex-direction:column;min-height:calc(100dvh - 70px)}
  .shell>aside{position:sticky;top:70px;z-index:9;display:block;flex:none;width:100%;min-width:0;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);background:var(--surface)}
  body.dark .shell>aside{background:#081725}
@@ -177,4 +178,17 @@ body.dark .top span#userBadge{color:#b7c9d8}
   .shell>main{overflow-wrap:normal}
   .shell>main .panel{max-width:100%}
   .shell>main .table-wrap{overflow-x:auto}
+}
+
+/* Touch devices may report a 1280px desktop viewport; retain compact controls. */
+@media(pointer:coarse){
+  .top{height:auto;min-height:68px;gap:8px;flex-wrap:wrap}
+  .top-brand{min-width:0;gap:9px}
+  .top-brand .top-logo{width:clamp(106px,14vw,170px);max-width:31vw;height:46px;flex:0 0 auto}
+  .top-brand>div>strong{font-size:clamp(11px,1.1vw,14px);white-space:nowrap}
+  .top-brand .subbrand{font-size:clamp(7px,.7vw,9px);white-space:nowrap}
+  .top span#userBadge{display:none}
+  .top-actions .secondary{padding:9px 12px;font-size:12px}
+  .shell>aside{top:auto;position:relative}
+  .shell>main{width:100%;min-width:0}
 }
