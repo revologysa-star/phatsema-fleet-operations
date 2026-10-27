@@ -2,7 +2,7 @@ const SUPABASE_URL="https://fduccizawxtqnqtuxmjl.supabase.co",KEY="sb_publishabl
 
 function initTheme(){const saved=localStorage.getItem("phatsema-theme");const dark=saved==="dark";document.body.classList.toggle("dark",dark);const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
 function toggleTheme(){const dark=!document.body.classList.contains("dark");document.body.classList.toggle("dark",dark);localStorage.setItem("phatsema-theme",dark?"dark":"light");const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
-document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
+document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],auditMachineNames:{},grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
 realHead=()=>S.p?.active!==false&&S.p?.role==="head_of_operations",
 activeGrants=id=>(S.grants||[]).filter(g=>g.user_id===id&&!g.revoked_at&&Date.parse(g.expires_at)>Date.now()),
 hasDelegated=scope=>activeGrants(S.user?.id).some(g=>g.permission===scope),
@@ -777,9 +777,9 @@ async function saveSettings(){for(let [key,value] of [["service_interval_hours",
 // is not an authorization mechanism by itself.
 function auditExportCSV(rows){
  return reportCSV([
-  ["Audit ID","Timestamp (ISO 8601)","Actor name","Actor role","Actor ID","Action","Entity type","Entity ID","Details (full JSON)"],
+  ["Audit ID","Timestamp (ISO 8601)","Actor name","Actor role","Actor ID","Action","Entity type","Machine name","Entity ID","Details (full JSON)"],
   ...rows.map(r=>[r.id,r.created_at,r.actor_name||"System",r.actor_role||"",
-   r.actor_id||"",r.action||"",r.entity_type||"",r.entity_id||"",
+   r.actor_id||"",r.action||"",r.entity_type||"",auditMachine(r)||"",r.entity_id||"",
    JSON.stringify(r.details??{})])
  ]);
 }
@@ -790,7 +790,7 @@ function auditFullPrintHTML(rows,snapshot){
    '<td>'+esc(r.id)+'</td><td>'+esc(r.created_at||"")+'</td>'+
    '<td>'+esc(r.actor_name||"System")+'<small>'+esc(r.actor_role||"")+'</small></td>'+
    '<td>'+esc(auditLabel(r.action||""))+'</td>'+
-   '<td>'+esc(r.entity_type||"")+'<small>'+esc(r.entity_id||"")+'</small></td>'+
+   '<td>'+esc(r.entity_type||"")+(auditMachine(r)?'<strong class="audit-print-machine">'+esc(auditMachine(r))+'</strong>':'')+'<small>'+esc(r.entity_id||"")+'</small></td>'+
    '<td class="audit-print-details">'+esc(JSON.stringify(r.details??{}))+'</td>'+
   '</tr>').join("");
  return '<div class="audit-print-title"><h1>Phatsema Fleet Operations</h1>'+
@@ -847,6 +847,7 @@ async function exportFullAuditLog(format){
  update("Preparing full audit history…");
  try{
   const {rows,snapshot}=await fetchCompleteAuditHistory(update);
+  await loadAuditMachineNames(rows);
   if(!realHead())throw new Error("The Head of Operations session is no longer active.");
   if(format==="csv"){
    const csv=auditExportCSV(rows);
@@ -885,10 +886,45 @@ async function exportFullAuditLog(format){
 }
 
 function auditActor(id){return S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.username||"System"}
-function auditMachine(x){return S.m.find(m=>m.id===x.entity_id)?.name||x.details?.after?.name||x.details?.before?.name||null}
-function auditDetail(x){let d=x.details||{};if(x.action==="temporary_access_granted"||x.action==="temporary_access_revoked")return accessLabel(d.permission||"access")+" · "+(x.action==="temporary_access_granted"?"Granted until "+(d.expires_at?fmt(d.expires_at):"expiry"):"Revoked")+(d.reason?" · Reason: "+d.reason:"");let from=d.from??d.before_status??d.before?.status,to=d.to??d.after_status??d.after?.status,h1=d.before_hours??d.before?.hours,h2=d.after_hours??d.after?.hours;if(x.action==="machine_hours_corrected")return "Current hours "+(d.before_hours??"—")+" → "+(d.after_hours??"—")+" · Reason: "+(d.reason||"not supplied");if(x.action==="machine_status_changed"&&from!==undefined)return "Status "+auditLabel(from)+" → "+auditLabel(to)+(d.reason?" · "+d.reason:"");if((x.action==="update_machine"||x.action==="machine_updated")&&(h1!==undefined||h2!==undefined||from!==undefined||to!==undefined)){let parts=[];if(h1!==undefined||h2!==undefined)parts.push("Hours "+(h1??"—")+" → "+(h2??"—"));if(from!==undefined||to!==undefined)parts.push("Status "+auditLabel(from??"—")+" → "+auditLabel(to??"—"));return parts.join(" · ")}let parts=[];Object.entries(d).forEach(([k,v])=>{if(k==="before"||k==="after"||v===null||v===undefined||v==="")return;let val=typeof v==="object"?JSON.stringify(v):String(v);parts.push(auditLabel(k)+": "+val)});return parts.join(" · ")||"Action recorded"}
-function renderAudit(){let root=$("aud");if(!root)return;let q=norm($("auditSearch")?.value||""),action=$("auditAction")?.value||"",rows=S.audit.filter(x=>(!action||x.action===action)&&(!q||(auditLabel(x.action)+" "+x.entity_type+" "+auditActor(x.actor_id)+" "+auditDetail(x)).toLowerCase().includes(q)));let c=$("auditCount");if(c)c.textContent=rows.length+" entr"+(rows.length===1?"y":"ies");if(!rows.length){root.innerHTML='<div class="audit-empty"><div class="audit-empty-icon">✓</div><strong>No audit entries found</strong><span>Try a different search or action filter.</span></div>';return}root.innerHTML=rows.map(x=>{let machine=auditMachine(x),actor=auditActor(x),entity=machine||auditLabel(x.entity_type||"system"),initial=(actor==="System"?"S":actor.trim().charAt(0).toUpperCase());return '<article class="audit-item"><div class="audit-icon">'+initial+'</div><div class="audit-main"><div class="audit-top"><div><strong>'+esc(auditLabel(x.action))+'</strong><span class="audit-entity">'+esc(entity)+'</span></div><time>'+esc(fmt(x.created_at))+'</time></div><div class="audit-detail">'+esc(auditDetail(x))+'</div><div class="audit-meta"><span>By '+esc(actor)+'</span><span>•</span><span>'+esc(auditLabel(x.entity_type||"system"))+'</span></div></div></article>'}).join("")}
-async function loadAudit(){let {data,error}=await db.from("audit_log").select("*").order("created_at",{ascending:false}).limit(100);if(error){$("aud").innerHTML='<div class="audit-empty"><strong>Could not load audit history</strong><span>'+esc(error.message)+"</span></div>";return}S.audit=data||[];let sel=$("auditAction");if(sel){let current=sel.value,actions=[...new Set(S.audit.map(x=>x.action).filter(Boolean))].sort();sel.innerHTML='<option value="">All actions</option>'+actions.map(a=>'<option value="'+esc(a)+'">'+esc(auditLabel(a))+'</option>').join("");sel.value=actions.includes(current)?current:""}renderAudit()}
+// Some audit rows reference a breakdown/service as the entity; their machine
+// UUID lives in details.machine_id. Never confuse an employee/entity UUID with
+// a machine UUID when resolving display names.
+function auditMachineId(x){
+ const d=x?.details||{};
+ if(typeof d.machine_id==="string"&&d.machine_id)return d.machine_id;
+ if(x?.entity_type==="machine"&&typeof x.entity_id==="string")return x.entity_id;
+ return null;
+}
+function auditMachine(x){
+ const id=auditMachineId(x);
+ const m=id?(S.m||[]).find(row=>row.id===id):null;
+ const value=m?.name||(id&&S.auditMachineNames?.[id])||
+  x?.details?.after?.name||x?.details?.before?.name||
+  (x?.entity_type==="machine"?x?.details?.name:null);
+ return typeof value==="string"&&value.trim()?value.trim():null;
+}
+// Resolve any historical/retired machines from the same existing read-only
+// machines table, without changing the live fleet or the original audit JSON.
+async function loadAuditMachineNames(rows){
+ const cached=S.auditMachineNames||(S.auditMachineNames={});
+ const activeIds=new Set((S.m||[]).map(m=>m.id));
+ const missing=[...new Set((rows||[]).map(auditMachineId).filter(id=>
+   id&&!activeIds.has(id)&&!Object.prototype.hasOwnProperty.call(cached,id)))];
+ for(let i=0;i<missing.length;i+=100){
+  const ids=missing.slice(i,i+100);
+  try{
+   const {data,error}=await db.from("machines").select("id,name").in("id",ids);
+   if(error)throw error;
+   for(const m of data||[])if(m&&m.id&&typeof m.name==="string")cached[m.id]=m.name;
+  }catch(error){
+   console.warn("Some historical machine names could not be loaded.",error);
+   return;
+  }
+ }
+}
+function auditDetail(x){let d=x.details||{};if(x.action==="temporary_access_granted"||x.action==="temporary_access_revoked")return accessLabel(d.permission||"access")+" · "+(x.action==="temporary_access_granted"?"Granted until "+(d.expires_at?fmt(d.expires_at):"expiry"):"Revoked")+(d.reason?" · Reason: "+d.reason:"");let from=d.from??d.before_status??d.before?.status,to=d.to??d.after_status??d.after?.status,h1=d.before_hours??d.before?.hours,h2=d.after_hours??d.after?.hours;if(x.action==="machine_hours_corrected")return "Current hours "+(d.before_hours??"—")+" → "+(d.after_hours??"—")+" · Reason: "+(d.reason||"not supplied");if(x.action==="machine_status_changed"&&from!==undefined)return "Status "+auditLabel(from)+" → "+auditLabel(to)+(d.reason?" · "+d.reason:"");if((x.action==="update_machine"||x.action==="machine_updated")&&(h1!==undefined||h2!==undefined||from!==undefined||to!==undefined)){let parts=[];if(h1!==undefined||h2!==undefined)parts.push("Hours "+(h1??"—")+" → "+(h2??"—"));if(from!==undefined||to!==undefined)parts.push("Status "+auditLabel(from??"—")+" → "+auditLabel(to??"—"));return parts.join(" · ")}let parts=[];Object.entries(d).forEach(([k,v])=>{if(k==="before"||k==="after"||v===null||v===undefined||v==="")return;let val=k==="machine_id"?(auditMachine(x)||String(v)):(typeof v==="object"?JSON.stringify(v):String(v));parts.push((k==="machine_id"?"Machine":auditLabel(k))+": "+val)});return parts.join(" · ")||"Action recorded"}
+function renderAudit(){let root=$("aud");if(!root)return;let q=norm($("auditSearch")?.value||""),action=$("auditAction")?.value||"",rows=S.audit.filter(x=>(!action||x.action===action)&&(!q||(auditLabel(x.action)+" "+x.entity_type+" "+(auditMachine(x)||"")+" "+auditActor(x.actor_id)+" "+auditDetail(x)).toLowerCase().includes(q)));let c=$("auditCount");if(c)c.textContent=rows.length+" entr"+(rows.length===1?"y":"ies");if(!rows.length){root.innerHTML='<div class="audit-empty"><div class="audit-empty-icon">✓</div><strong>No audit entries found</strong><span>Try a different search or action filter.</span></div>';return}root.innerHTML=rows.map(x=>{let machine=auditMachine(x),actor=auditActor(x),entity=machine||auditLabel(x.entity_type||"system"),initial=(actor==="System"?"S":actor.trim().charAt(0).toUpperCase());return '<article class="audit-item"><div class="audit-icon">'+initial+'</div><div class="audit-main"><div class="audit-top"><div><strong>'+esc(auditLabel(x.action))+'</strong><span class="audit-entity">'+esc(entity)+'</span></div><time>'+esc(fmt(x.created_at))+'</time></div><div class="audit-detail">'+esc(auditDetail(x))+'</div><div class="audit-meta"><span>By '+esc(actor)+'</span><span>•</span><span>'+esc(auditLabel(x.entity_type||"system"))+'</span></div></div></article>'}).join("")}
+async function loadAudit(){let {data,error}=await db.from("audit_log").select("*").order("created_at",{ascending:false}).limit(100);if(error){$("aud").innerHTML='<div class="audit-empty"><strong>Could not load audit history</strong><span>'+esc(error.message)+"</span></div>";return}S.audit=data||[];await loadAuditMachineNames(S.audit);let sel=$("auditAction");if(sel){let current=sel.value,actions=[...new Set(S.audit.map(x=>x.action).filter(Boolean))].sort();sel.innerHTML='<option value="">All actions</option>'+actions.map(a=>'<option value="'+esc(a)+'">'+esc(auditLabel(a))+'</option>').join("");sel.value=actions.includes(current)?current:""}renderAudit()}
 let resumingUser=null;
 async function login(e){if(e&&e.preventDefault)e.preventDefault();let btn=$("loginBtn"),msg=$("loginMsg");if(!db){if(msg)msg.textContent="Secure login is still loading. Please wait a moment and try again.";return}let email=$("loginEmail")?.value.trim()||"",password=$("loginPassword")?.value||"";if(!email||!password){if(msg)msg.textContent="Enter your email and password.";return}if(btn){btn.disabled=true;btn.textContent="Signing in…"}if(msg){msg.textContent="Connecting to Phatsema…";msg.classList.remove("error")}try{let result=await Promise.race([db.auth.signInWithPassword({email,password}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000))]);let{data,error}=result;if(error){if(msg)msg.textContent=error.message;return}if(data?.user){if(msg)msg.textContent="Login successful. Loading your fleet…";await resume(data.user)}else if(msg)msg.textContent="Login did not return a user session. Please try again."}catch(err){if(msg)msg.textContent=err?.message||String(err);console.error("Phatsema login error",err)}finally{if(btn){btn.disabled=false;btn.textContent="Log in"}}}
 async function resume(user){if(resumingUser===user.id)return;resumingUser=user.id;try{S.user=user;let{data,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();if(error){$("loginMsg").textContent="Profile lookup failed: "+error.message;return}if(!data){await db.auth.signOut();$("loginMsg").textContent="No Phatsema profile exists for this account.";return}S.p=data;$("userBadge").textContent=(S.p.full_name||user.email)+" · "+S.p.role;$("login").classList.add("hidden");$("app").classList.remove("hidden");try{await load()}catch(err){showFatal("Load failed: "+(err.message||String(err)))}}finally{resumingUser=null}}
