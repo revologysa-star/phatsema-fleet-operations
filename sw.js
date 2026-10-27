@@ -1,7 +1,7 @@
 "use strict";
 // Static assets only. NEVER intercept, cache, or queue authenticated Supabase
 // requests, sessions, uploaded photos, API responses, or user fleet records.
-const CACHE="phatsema-static-v20261026-pwa1";
+const CACHE="phatsema-static-v20261027-auditnames1";
 const CORE=["./","./index.html","./styles.css","./app.js","./pwa-install.js",
             "./manifest.webmanifest","./icons/icon-192.png","./icons/icon-512.png"];
 const CORE_PATHS=new Set(["","index.html","styles.css","app.js",
