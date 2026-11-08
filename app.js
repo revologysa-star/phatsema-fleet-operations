@@ -1,8 +1,29 @@
 const SUPABASE_URL="https://fduccizawxtqnqtuxmjl.supabase.co",KEY="sb_publishable_BzL4VuUfWGSLOHY-9vsnuw_d5nQp0dx";
 
-function initTheme(){const saved=localStorage.getItem("phatsema-theme");const dark=saved==="dark";document.body.classList.toggle("dark",dark);const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
-function toggleTheme(){const dark=!document.body.classList.contains("dark");document.body.classList.toggle("dark",dark);localStorage.setItem("phatsema-theme",dark?"dark":"light");const b=document.getElementById("themeBtn");if(b)b.textContent=dark?"☀️ Light":"🌙 Dark"}
-document.addEventListener("DOMContentLoaded",()=>{initTheme();const b=document.getElementById("themeBtn");if(b)b.addEventListener("click",toggleTheme)});let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],auditMachineNames:{},auditActorNames:{},grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
+function applyTheme(dark){
+ document.body.classList.toggle("dark",dark);
+ $("themeBtn")?.setAttribute("aria-pressed",String(dark));
+}
+function initAccountMenu(){
+ applyTheme(localStorage.getItem("phatsema-theme")==="dark");
+ const menu=$("accountMenu");
+ if(!menu)return;
+ $("themeBtn").onclick=()=>{
+  const dark=!document.body.classList.contains("dark");
+  localStorage.setItem("phatsema-theme",dark?"dark":"light");
+  applyTheme(dark);
+ };
+ document.addEventListener("click",event=>{
+  if(menu.open&&!menu.contains(event.target))menu.open=false;
+ });
+ menu.addEventListener("keydown",event=>{
+  if(!menu.open||event.key!=="Escape")return;
+  menu.open=false;
+  menu.querySelector("summary").focus();
+  event.preventDefault();
+ });
+}
+let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],auditMachineNames:{},auditActorNames:{},grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",dueSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
 realHead=()=>S.p?.active!==false&&S.p?.role==="head_of_operations",
 activeGrants=id=>(S.grants||[]).filter(g=>g.user_id===id&&!g.revoked_at&&Date.parse(g.expires_at)>Date.now()),
 hasDelegated=scope=>activeGrants(S.user?.id).some(g=>g.permission===scope),
@@ -98,9 +119,34 @@ function dash(){
   '<div class="ops-recent"><h3>Recent services</h3>'+(recentServices||'<p class="muted">No services recorded yet.</p>')+'</div>'+
   '</section></div></div>';
 }
-function serviceDue(){let today=new Date();today.setHours(0,0,0,0);let a=(S.m||[]).filter(m=>{let byHours=m.next_service_hours!=null&&Number(m.hours||0)>=Number(m.next_service_hours);let byDate=m.next_service_date&&new Date(m.next_service_date+"T00:00:00")<=today;return byHours||byDate}).sort((x,y)=>Number(y.hours||0)-Number(x.hours||0));return '<div class="page-head"><div><h1>Service Due</h1><div class="muted">Machines that have reached or passed their next scheduled service</div></div><button id="refresh" class="secondary">Refresh</button></div><div class="panel table-wrap"><table class="table ops-cards-table ops-due-table"><thead><tr><th>Machine</th><th>Current Hours</th><th>Next Service</th><th>Status</th><th>Action</th></tr></thead><tbody>'+(a.map(m=>'<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td>'+Number(m.hours||0).toLocaleString()+'</td><td>'+serviceDueLabel(m)+'</td><td><span class="status breakdown">Due</span></td><td>'+ (canNextService()?'<button class="primary nextService" data-id="'+m.id+'">Set next service</button>':'View')+'</td></tr>').join("")||'<tr><td colspan="5" class="empty">No machines are currently due for service.</td></tr>')+'</tbody></table></div>'}
+function serviceDue(){
+ const due=S.m.map(machine=>({machine,schedule:serviceSchedule(machine)}))
+  .filter(({schedule})=>schedule.due)
+  .sort((a,b)=>a.schedule.priority-b.schedule.priority);
+ const search=norm(S.dueSearch);
+ const rows=due.filter(({machine:m})=>norm([m.name,m.fleet_id,m.site].join(" ")).includes(search))
+  .map(({machine:m,schedule})=>{
+   const byHours=schedule.remaining!==null&&schedule.remaining<=0;
+   const byDate=schedule.days!==null&&schedule.days<=0;
+   const dueReason=byHours&&byDate?"Hours and date":byHours?"Hours":"Date";
+   const id=esc(m.id);
+   return '<tr><td><span><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</span></td>'+
+    '<td>'+Number(m.hours||0).toLocaleString()+'</td><td>'+esc(serviceDueLabel(m))+'</td>'+
+    '<td><span class="status breakdown">Due by '+dueReason.toLowerCase()+'</span></td>'+
+    '<td><div class="service-due-actions"><button type="button" class="primary" data-log-service="'+id+'">Log service</button>'+
+    (canNextService()?'<button type="button" class="secondary nextService" data-id="'+id+'">Set next service</button>':"")+
+    '</div></td></tr>';
+  }).join("");
+ const empty=due.length?"No due machines match your search.":"No machines are currently due for service.";
+ return '<div class="page-head"><div><h1>Service Due</h1><div class="muted">'+due.length+' '+
+  (due.length===1?"machine":"machines")+' due for service</div></div><button id="refresh" class="secondary">Refresh</button></div>'+
+  '<div class="toolbar"><input type="search" id="dq" aria-label="Search machines due for service" placeholder="Search by machine, fleet ID or site" value="'+esc(S.dueSearch)+'"></div>'+
+  '<div class="panel table-wrap"><table class="table ops-cards-table ops-due-table"><thead><tr>'+
+  '<th>Machine</th><th>Current hours</th><th>Next service</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
+  (rows||'<tr><td colspan="5" class="empty">'+empty+'</td></tr>')+'</tbody></table></div>';
+}
 function serviceDueLabel(m){let parts=[];if(m.next_service_hours!=null)parts.push(Number(m.next_service_hours).toLocaleString()+" h");if(m.next_service_date)parts.push(new Date(m.next_service_date+"T00:00:00").toLocaleDateString());return parts.join(" / ")||"Not set"}
-function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),filter=S.fleetFilter?.status,a=S.m.filter(m=>(!filter||norm(m.status)===filter)&&((m.name+" "+m.fleet_id+" "+(m.model||"")+" "+(m.site||"")).toLowerCase().includes(q)));return '<div class="page-head"><div><h1>Machines</h1><div class="muted">Status, hours and fleet service schedule</div></div>'+(canFleetManage()?'<button id="addM" class="primary">+ Add machine</button>':"")+'</div><div class="toolbar"><input type="search" id="mq" aria-label="Search machines" placeholder="Search machines" value="'+esc(S.fleetSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-fleet-table"><thead><tr><th>Machine</th><th>Status</th><th>Hours</th><th>Live Production</th><th>Next Service Due</th><th>Site</th><th>Actions</th></tr></thead><tbody>'+(a.map(m=>{let due=(m.next_service_hours!=null&&Number(m.hours||0)>=Number(m.next_service_hours))||(m.next_service_date&&new Date(m.next_service_date+"T00:00:00")<=new Date(new Date().toISOString().slice(0,10)+"T00:00:00"));return '<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td><span class="status '+esc(m.status)+'">'+esc(m.status)+'</span></td><td>'+Number(m.hours||0).toLocaleString()+'</td><td><span class="production-clock" data-production-machine="'+esc(m.id)+'">'+productionClockText(m)+'</span></td><td><span class="status '+(due?"breakdown":"available")+'">'+esc(serviceDueLabel(m))+(due?" · DUE":"")+'</span></td><td>'+esc(m.site||"—")+'</td><td>'+((canFleetManage()||canCorrectHours()||canNextService())?
+function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),filter=S.fleetFilter?.status,a=S.m.filter(m=>(!filter||norm(m.status)===filter)&&((m.name+" "+m.fleet_id+" "+(m.model||"")+" "+(m.site||"")).toLowerCase().includes(q)));return '<div class="page-head"><div><h1>Machines</h1><div class="muted">Status, hours and fleet service schedule</div></div>'+(canFleetManage()?'<button id="addM" class="primary">+ Add machine</button>':"")+'</div><div class="toolbar"><input type="search" id="mq" aria-label="Search machines" placeholder="Search machines" value="'+esc(S.fleetSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-fleet-table"><thead><tr><th>Machine</th><th>Status</th><th>Hours</th><th>Live Production</th><th>Next Service Due</th><th>Site</th><th>Actions</th></tr></thead><tbody>'+(a.map(m=>{let due=serviceSchedule(m).due;return '<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td><span class="status '+esc(m.status)+'">'+esc(m.status)+'</span></td><td>'+Number(m.hours||0).toLocaleString()+'</td><td><span class="production-clock" data-production-machine="'+esc(m.id)+'">'+productionClockText(m)+'</span></td><td><span class="status '+(due?"breakdown":"available")+'">'+esc(serviceDueLabel(m))+(due?" · DUE":"")+'</span></td><td>'+esc(m.site||"—")+'</td><td>'+((canFleetManage()||canCorrectHours()||canNextService())?
  (canFleetManage()||canCorrectHours()?'<button class="secondary editHours" data-id="'+m.id+'">Edit hours</button> ':"")+
  (canFleetManage()?'<button class="secondary st" data-id="'+m.id+'">Status</button> ':"")+
  (canNextService()?'<button class="secondary nextService" data-id="'+m.id+'">Next service</button> ':"")+
@@ -565,7 +611,7 @@ function bind(){
   S.fleetFilter={status:element.dataset.state};S.fleetSearch="";go("machines");
  });
  document.querySelectorAll("[data-filter-breakdowns]").forEach(element=>element.onclick=openBreakdowns);
- const searches=[["mq","fleetSearch"],["bq","breakdownSearch"],["sq","serviceSearch"]];
+ const searches=[["mq","fleetSearch"],["bq","breakdownSearch"],["sq","serviceSearch"],["dq","dueSearch"]];
  searches.forEach(([id,key])=>{
   const input=$(id);if(!input)return;
   input.oninput=()=>{
@@ -580,12 +626,15 @@ function bind(){
   };
  });
  if($("quickBreakdown"))$("quickBreakdown").onclick=addBreakdown;
- if($("quickService"))$("quickService").onclick=addService;if($("changeMyPassword"))$("changeMyPassword").onclick=()=>showPasswordReset(false);
+ if($("quickService"))$("quickService").onclick=()=>addService();if($("changeMyPassword"))$("changeMyPassword").onclick=()=>showPasswordReset(false);
  if($("peopleRefresh"))$("peopleRefresh").onclick=load;if($("addEmployee"))$("addEmployee").onclick=addEmployee;
  document.querySelectorAll(".manageAccess").forEach(element=>element.onclick=()=>manageAccess(element.dataset.id));
  if($("addM"))$("addM").onclick=addMachine;
  if($("addB"))$("addB").onclick=addBreakdown;
- if($("addS"))$("addS").onclick=addService;
+ if($("addS"))$("addS").onclick=()=>addService();
+ document.querySelectorAll("[data-log-service]").forEach(button=>{
+  button.onclick=()=>addService(button.dataset.logService);
+ });
  if($("save"))$("save").onclick=saveSettings;
  if($("ar"))$("ar").onclick=loadAudit;
  if($("auditExportCSV"))$("auditExportCSV").onclick=()=>exportFullAuditLog("csv");
@@ -697,7 +746,58 @@ function attachBreakdownEvidence(id){
    await load();
   });
 }
-function addService(){let mo=S.m.map(m=>'<option value="'+m.id+'">'+esc(m.name)+" · "+Number(m.hours||0)+"h</option>").join("");modal("Log service",'<label>Machine</label><select name="machine_id" required>'+mo+'</select><label>Hour reading</label><input name="hours" type="number" min="0" step=".1" required><label>Work completed</label><textarea name="work" rows="4" required></textarea><label>Notes</label><textarea name="notes" rows="3"></textarea><label>Photos of work done <span class="muted">(optional)</span></label><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple><div class="muted">Add up to 8 photos. These are stored with the service record.</div>',async f=>{let files=Array.from(f.getAll("photos")||[]).filter(x=>x&&x.size).slice(0,8);let {data,error}=await db.rpc("log_service",{p_machine_id:f.get("machine_id"),p_work_completed:f.get("work"),p_hour_reading:Number(f.get("hours")),p_notes:f.get("notes")});if(error)throw error;let serviceId=data?.id||data;if(!serviceId)throw new Error("Service was logged but no service ID was returned, so photos could not be attached.");for(let file of files){let safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_"),path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;let up=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw up.error;let ins=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});if(ins.error)throw ins.error}$("modalRoot").innerHTML="";toast(files.length?"Service logged with "+files.length+" photo"+(files.length===1?"":"s"):"Service logged");load()})}function editMachine(id){
+function addService(machineId){
+ const options=S.m.map(m=>
+  '<option value="'+esc(m.id)+'"'+(m.id===machineId?' selected':'')+'>'+
+  esc(m.name)+' · '+esc(m.fleet_id)+' · '+Number(m.hours||0).toLocaleString()+' h</option>'
+ ).join("");
+ modal("Log service",
+  '<label for="serviceMachine">Machine</label><select id="serviceMachine" name="machine_id" required>'+options+'</select>'+
+  '<label for="serviceHours">Hour reading</label><input id="serviceHours" name="hours" type="number" min="0" step=".1" required>'+
+  '<label for="serviceWork">Work completed</label><textarea id="serviceWork" name="work" rows="4" required></textarea>'+
+  '<label for="serviceNotes">Notes</label><textarea id="serviceNotes" name="notes" rows="3"></textarea>'+
+  '<label for="servicePhotos">Photos of work done <span class="muted">(optional)</span></label>'+
+  '<input id="servicePhotos" name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple>'+
+  '<div class="muted">Add up to 8 photos. These are stored with the service record.</div>',
+  async form=>{
+   const files=Array.from(form.getAll("photos")).filter(file=>file&&file.size).slice(0,8);
+   const {data,error}=await db.rpc("log_service",{
+    p_machine_id:form.get("machine_id"),p_work_completed:form.get("work"),
+    p_hour_reading:Number(form.get("hours")),p_notes:form.get("notes")
+   });
+   if(error)throw error;
+
+   // The service is already committed. A photo failure must not offer to save it again.
+   const serviceId=data?.id||data;
+   let attached=0;
+   if(serviceId&&files.length){
+    const storage=db.storage.from("fleet-evidence");
+    for(const file of files){
+     const safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_");
+     const path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;
+     try{
+      const upload=await storage.upload(path,file,{contentType:file.type,upsert:false});
+      if(upload.error)continue;
+      const link=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});
+      if(link.error){
+       await storage.remove([path]).catch(()=>{});
+       continue;
+      }
+      attached++;
+     }catch(error){
+      console.warn("Could not attach service photo",error);
+     }
+    }
+   }
+   $("modalRoot").innerHTML="";
+   const missing=files.length-attached;
+   toast(missing?"Service logged. "+missing+" of "+files.length+" photos could not be attached.":
+    attached?"Service logged with "+attached+(attached===1?" photo":" photos"):"Service logged",missing>0);
+   await load();
+  }
+ );
+}
+function editMachine(id){
   const m=S.m.find(x=>x.id===id);
   if(!m)return;
   const current=Number(m.hours||0);
@@ -958,12 +1058,24 @@ function renderAudit(){let root=$("aud");if(!root)return;let q=norm($("auditSear
 async function loadAudit(){let {data,error}=await db.from("audit_log").select("*").order("created_at",{ascending:false}).limit(100);if(error){$("aud").innerHTML='<div class="audit-empty"><strong>Could not load audit history</strong><span>'+esc(error.message)+"</span></div>";return}S.audit=data||[];await Promise.all([loadAuditMachineNames(S.audit),loadAuditActorNames(S.audit)]);let sel=$("auditAction");if(sel){let current=sel.value,actions=[...new Set(S.audit.map(x=>x.action).filter(Boolean))].sort();sel.innerHTML='<option value="">All actions</option>'+actions.map(a=>'<option value="'+esc(a)+'">'+esc(auditLabel(a))+'</option>').join("");sel.value=actions.includes(current)?current:""}renderAudit()}
 let resumingUser=null;
 async function login(e){if(e&&e.preventDefault)e.preventDefault();let btn=$("loginBtn"),msg=$("loginMsg");if(!db){if(msg)msg.textContent="Secure login is still loading. Please wait a moment and try again.";return}let email=$("loginEmail")?.value.trim()||"",password=$("loginPassword")?.value||"";if(!email||!password){if(msg)msg.textContent="Enter your email and password.";return}if(btn){btn.disabled=true;btn.textContent="Signing in…"}if(msg){msg.textContent="Connecting to Phatsema…";msg.classList.remove("error")}try{let result=await Promise.race([db.auth.signInWithPassword({email,password}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000))]);let{data,error}=result;if(error){if(msg)msg.textContent=error.message;return}if(data?.user){if(msg)msg.textContent="Login successful. Loading your fleet…";await resume(data.user)}else if(msg)msg.textContent="Login did not return a user session. Please try again."}catch(err){if(msg)msg.textContent=err?.message||String(err);console.error("Phatsema login error",err)}finally{if(btn){btn.disabled=false;btn.textContent="Log in"}}}
-async function resume(user){if(resumingUser===user.id)return;resumingUser=user.id;try{S.user=user;let{data,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();if(error){$("loginMsg").textContent="Profile lookup failed: "+error.message;return}if(!data){await db.auth.signOut();$("loginMsg").textContent="No Phatsema profile exists for this account.";return}S.p=data;$("userBadge").textContent=(S.p.full_name||user.email)+" · "+S.p.role;$("login").classList.add("hidden");$("app").classList.remove("hidden");try{await load()}catch(err){showFatal("Load failed: "+(err.message||String(err)))}}finally{resumingUser=null}}
+async function resume(user){if(resumingUser===user.id)return;resumingUser=user.id;try{S.user=user;let{data,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();if(error){$("loginMsg").textContent="Profile lookup failed: "+error.message;return}if(!data){await db.auth.signOut();$("loginMsg").textContent="No Phatsema profile exists for this account.";return}S.p=data;$("userBadge").textContent=S.p.full_name||user.email;$("accountRole").textContent=String(S.p.role||"").replaceAll("_"," ");$("login").classList.add("hidden");$("app").classList.remove("hidden");try{await load()}catch(err){showFatal("Load failed: "+(err.message||String(err)))}}finally{resumingUser=null}}
 function showRecovery(){return showPasswordReset()}
 function showPasswordReset(invited=false){modal(invited?"Set your Phatsema password":"Set a new password",'<label>New password</label><input name="password" type="password" minlength="8" autocomplete="new-password" required><label>Confirm password</label><input name="confirm" type="password" minlength="8" autocomplete="new-password" required><p class="muted">Use at least 8 characters.</p>',async form=>{let password=String(form.get("password")||""),confirm=String(form.get("confirm")||"");if(password.length<8)throw new Error("Password must be at least 8 characters.");if(password!==confirm)throw new Error("Passwords do not match.");let{error}=await db.auth.updateUser({password});if(error)throw error;$("modalRoot").innerHTML="";await db.auth.signOut();$("login").classList.remove("hidden");$("app").classList.add("hidden");$("loginMsg").textContent="Password changed successfully. You can now log in with your new password."})}
 function recoveryMessage(error){let m=error?.message||String(error||"");if(/rate limit|429|over_email_send_rate_limit/i.test(m))return"Password reset emails are temporarily rate-limited. Please wait a while before trying again.";return m}
 async function requestPasswordReset(){let e=$("loginEmail").value.trim(),msg=$("loginMsg"),btn=$("forgotBtn");if(!e){msg.textContent="Enter your email first.";return}let key="phatsema-reset-last-"+e.toLowerCase(),last=Number(localStorage.getItem(key)||0),wait=Math.ceil((60000-(Date.now()-last))/1000);if(wait>0){msg.textContent=`Please wait ${wait}s before requesting another reset email.`;return}if(btn)btn.disabled=true;msg.textContent="Sending password reset email…";let{error}=await db.auth.resetPasswordForEmail(e,{redirectTo:new URL(location.href).href.split("#")[0]});if(error){msg.textContent=recoveryMessage(error);if(btn)btn.disabled=false;return}localStorage.setItem(key,String(Date.now()));msg.textContent="Password reset email sent. Check your inbox and spam folder.";setTimeout(()=>{if(btn)btn.disabled=false},60000)}
-function boot(){const invited=/(?:[?#&])type=invite(?:[&#]|$)/.test(location.href);let inviteShown=false;const openInvite=()=>{if(!inviteShown){inviteShown=true;showPasswordReset(true)}};initTheme();const themeBtn=$("themeBtn");if(themeBtn){themeBtn.onclick=toggleTheme}if(!initSupabase())return;let f=$("loginForm");if(f)f.onsubmit=login;let fb=$("forgotBtn");if(fb)fb.onclick=requestPasswordReset;let lo=$("logoutBtn");if(lo)lo.onclick=async()=>{await db.auth.signOut();location.reload()};db.auth.onAuthStateChange(async(event,session)=>{if(event==="PASSWORD_RECOVERY"){showRecovery();return}if(event==="SIGNED_OUT"){S.user=null;S.p=null;$("login")?.classList.remove("hidden");$("app")?.classList.add("hidden");return}if(event==="SIGNED_IN"&&session?.user){if(invited){openInvite();return}await resume(session.user)}});db.auth.getSession().then(async({data})=>{if(location.hash.includes("type=recovery")){showRecovery();return}if(data?.session?.user){if(invited)openInvite();else await resume(data.session.user)}else $("login")?.classList.remove("hidden")}).catch(err=>showFatal(err.message||String(err)))}
+async function signOut(){
+ const button=$("logoutBtn");
+ button.disabled=true;
+ try{
+  const {error}=await db.auth.signOut();
+  if(error)throw error;
+  location.reload();
+ }catch(error){
+  button.disabled=false;
+  toast("Could not log out: "+(error.message||String(error)),true);
+ }
+}
+function boot(){const invited=/(?:[?#&])type=invite(?:[&#]|$)/.test(location.href);let inviteShown=false;const openInvite=()=>{if(!inviteShown){inviteShown=true;showPasswordReset(true)}};initAccountMenu();if(!initSupabase())return;let f=$("loginForm");if(f)f.onsubmit=login;let fb=$("forgotBtn");if(fb)fb.onclick=requestPasswordReset;const logout=$("logoutBtn");if(logout)logout.onclick=signOut;db.auth.onAuthStateChange(async(event,session)=>{if(event==="PASSWORD_RECOVERY"){showRecovery();return}if(event==="SIGNED_OUT"){const menu=$("accountMenu");if(menu)menu.open=false;S.user=null;S.p=null;$("login")?.classList.remove("hidden");$("app")?.classList.add("hidden");return}if(event==="SIGNED_IN"&&session?.user){if(invited){openInvite();return}await resume(session.user)}});db.auth.getSession().then(async({data})=>{if(location.hash.includes("type=recovery")){showRecovery();return}if(data?.session?.user){if(invited)openInvite();else await resume(data.session.user)}else $("login")?.classList.remove("hidden")}).catch(err=>showFatal(err.message||String(err)))}
 window.addEventListener("error",e=>showFatal(e.message||"Unexpected error"));
 window.addEventListener("unhandledrejection",e=>showFatal(e.reason?.message||String(e.reason||"Unhandled promise rejection")));
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();

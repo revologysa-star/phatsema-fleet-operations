@@ -35,7 +35,7 @@ test("PWA PNG icons are real raster images at both required dimensions",()=>{
 });
 
 test("Login and authenticated headers both expose a non-submitting install control",()=>{
- assert.match(html,/<link rel="manifest" href="\.\/manifest\.webmanifest">/);
+ assert.match(html,/<link rel="manifest" href="\.\/manifest\.webmanifest(?:\?[^"]+)?">/);
  assert.match(html,/<link rel="apple-touch-icon"/);
  assert.equal((html.match(/data-pwa-install hidden/g)||[]).length,2);
  assert.match(html,/<script src="\.\/pwa-install\.js\?v=/);
