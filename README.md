@@ -36,11 +36,14 @@ The app now includes an Android install manifest, 192px/512px icons and static-o
 6. Run `bash scripts/build-static.sh` and host **only `dist/`** on a provider whose terms permit your use, e.g. Cloudflare Pages or Netlify Free within their respective limits. Do not use Vercel Hobby or GitHub Pages for commercial SaaS.
 
 ## WhatsApp
-There are two honest modes:
-- Automatic: the Edge Function calls Meta WhatsApp Cloud API. This requires Phatsema's Meta credentials as Edge Function secrets.
-- Fallback: if automatic sending is not configured, the UI opens WhatsApp with a pre-filled alert instead of pretending it sent a message.
 
-Never put a WhatsApp access token in `index.html`.
+Automatic service reminders use Meta WhatsApp Cloud API. In addition to the access token and phone number ID, set the Edge Function secret `WHATSAPP_SERVICE_TEMPLATE_NAME` to an approved template. Set `WHATSAPP_SERVICE_TEMPLATE_LANGUAGE` if the approved language differs from `en`.
+
+The template body takes five positional variables in order: machine name, fleet ID, current hours, service due hours and warning threshold hours. Then enable automatic service alerts and save the recipient in **Settings**. The app also offers a manual **Open WhatsApp** action for an assigned technician or the configured alert number. This opens a draft for an employee to send.
+
+## Employee invitations
+
+Set the production URL under Supabase Auth **URL Configuration** so invitations open the current app. If invitations need a different approved redirect, set the `PHATSEMA_APP_URL` Edge Function secret and add that address to the Supabase redirect allow list.
 
 ## Critical workflow guarantees
 Machine state changes are performed through database RPC functions so the breakdown/service/machine updates occur in one database transaction. This prevents the previous bug where a breakdown could be marked resolved while the machine remained in breakdown status.

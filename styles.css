@@ -615,3 +615,12 @@ body.dark .account-logout{color:#ffb2ab}
  .top-actions .account-trigger{font-size:12px;padding:7px 9px}
  .service-due-actions{width:100%;justify-content:flex-end}
 }
+
+[hidden]{display:none!important}
+#loadErr:empty,#loginMsg:empty,#settingsMessage:empty,#modalFeedback:empty{display:none}
+#loadErr[role="status"]{color:var(--muted)}
+.fleet-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);margin-bottom:12px}
+.action-link{display:inline-block;text-decoration:none}
+.photo-button{padding:5px 8px;margin:2px 0}
+body.dark label{color:#b8cce0}
+@media(max-width:520px){.toast{max-width:calc(100vw - 36px);overflow-wrap:anywhere}}

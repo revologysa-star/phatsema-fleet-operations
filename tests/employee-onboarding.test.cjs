@@ -23,6 +23,7 @@ function setup(options={}){
    const b={
     select(){return b},
     eq(){return b},
+    ilike(){return b},
     limit:async()=>({data:options.duplicate?[{id:"exists"}]:[],error:null}),
     maybeSingle:async()=>({data:{role:options.role||"head_of_operations",active:options.active!==false},error:null}),
     update(value){calls.profiles.push(value);return b},

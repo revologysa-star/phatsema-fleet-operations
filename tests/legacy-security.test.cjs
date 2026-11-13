@@ -17,8 +17,8 @@ test("legacy employee management endpoints require Head of Operations",()=>{
 });
 test("legacy username login does not expose email addresses without passwords",()=>{
  const login=read("username-login-v1");
- assert.match(login,/typeof password!=='string'/);
- assert.match(login,/Username and password required/);
+ assert.match(login,/typeof password\s*!==\s*["']string["']/);
+ assert.match(login,/Username and password (?:are )?required/);
  assert.doesNotMatch(login,/return out\(\{email\}\)/);
  assert.match(login,/Invalid username or password/);
 });
