@@ -3,7 +3,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 
 const ALLOWED_ROLES = new Set(["assistant_mechanic", "foreman", "operations_manager"]);
-const APP_URL = "https://phatsema-fleet-operations-azs9.vercel.app/";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -80,7 +79,7 @@ Deno.serve(async (request) => {
       return fail(400, "Temporary passwords must contain 12–128 characters.");
 
     const { data: existing, error: duplicateError } = await admin.from("profiles")
-      .select("id").eq("username", username).limit(1);
+      .select("id").ilike("username", username.replace(/_/g, "\\_")).limit(1);
     if (duplicateError) return fail(503, "Could not verify username availability.");
     if (existing?.length) return fail(409, "This username is already in use.");
 
@@ -88,8 +87,9 @@ Deno.serve(async (request) => {
     const metadata = { full_name: fullName, username };
     let created;
     if (mode === "invite") {
+      const redirectTo = string(Deno.env.get("PHATSEMA_APP_URL"));
       created = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: APP_URL,
+        ...(redirectTo ? { redirectTo } : {}),
         data: metadata,
       });
     } else {

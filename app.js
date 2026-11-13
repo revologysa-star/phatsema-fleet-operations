@@ -5,13 +5,13 @@ function applyTheme(dark){
  $("themeBtn")?.setAttribute("aria-pressed",String(dark));
 }
 function initAccountMenu(){
- applyTheme(localStorage.getItem("phatsema-theme")==="dark");
+ try{applyTheme(localStorage.getItem("phatsema-theme")==="dark")}catch(_){applyTheme(false)}
  const menu=$("accountMenu");
  if(!menu)return;
  $("themeBtn").onclick=()=>{
   const dark=!document.body.classList.contains("dark");
-  localStorage.setItem("phatsema-theme",dark?"dark":"light");
   applyTheme(dark);
+  try{localStorage.setItem("phatsema-theme",dark?"dark":"light")}catch(_){/* Theme still applies for this session. */}
  };
  document.addEventListener("click",event=>{
   if(menu.open&&!menu.contains(event.target))menu.open=false;
@@ -23,19 +23,72 @@ function initAccountMenu(){
   event.preventDefault();
  });
 }
-let db=null;function initSupabase(){if(!window.supabase||typeof window.supabase.createClient!=="function"){let m=document.getElementById("loginMsg");if(m)m.textContent="The Supabase connection library did not load. Please refresh the page.";return false}try{db=window.supabase.createClient(SUPABASE_URL,KEY);return true}catch(e){let m=document.getElementById("loginMsg");if(m)m.textContent="Could not initialize the secure login connection. Check the browser console for the exact error.";showFatal(e.message||String(e));return false}}let S={user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],auditMachineNames:{},auditActorNames:{},grants:[],accessReady:false,view:"dashboard",fleetSearch:"",breakdownSearch:"",serviceSearch:"",dueSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),3000)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true,headOps=()=>S.p?.role==="head_of_operations"||S.p?.full_access===true,
+let db=null;
+function initSupabase(){
+ if(typeof window.supabase?.createClient!=="function"){
+  $("loginMsg").textContent="The secure login library did not load. Check your connection and refresh the page.";
+  return false;
+ }
+ try{db=window.supabase.createClient(SUPABASE_URL,KEY,{global:{fetch:appFetch}});return true}
+ catch(error){showFatal(error.message||String(error));return false}
+}
+function newState(){
+ return {user:null,p:null,m:[],b:[],s:[],photos:[],breakdownPhotos:[],people:[],settings:[],audit:[],auditMachineNames:{},auditActorNames:{},grants:[],accessReady:false,view:"dashboard",fleetFilter:null,fleetSearch:"",breakdownSearch:"",serviceSearch:"",dueSearch:"",reportDays:30,lastLoadedAt:null,loadErrors:[]};
+}
+let S=newState();
+let loadRequest=0;
+const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const toast=(x,e)=>{let t=document.createElement("div");t.className="toast"+(e?" error":"");t.textContent=x;$("toastRoot").append(t);setTimeout(()=>t.remove(),4500)},fmt=x=>x?new Date(x).toLocaleString():"—",mgr=()=>S.p?.active!==false&&(["foreman","operations_manager","head_of_operations"].includes(S.p?.role)||S.p?.full_access===true),
 realHead=()=>S.p?.active!==false&&S.p?.role==="head_of_operations",
 activeGrants=id=>(S.grants||[]).filter(g=>g.user_id===id&&!g.revoked_at&&Date.parse(g.expires_at)>Date.now()),
-hasDelegated=scope=>activeGrants(S.user?.id).some(g=>g.permission===scope),
+hasDelegated=scope=>!!S.user&&S.p?.active!==false&&activeGrants(S.user.id).some(g=>g.permission===scope),
 canFleetManage=()=>mgr()||hasDelegated("manage_fleet"),
 canNextService=()=>realHead()||hasDelegated("next_service"),
 canCorrectHours=()=>realHead()||hasDelegated("correct_hours"),
 accessLabel=scope=>({manage_fleet:"Manage Fleet",next_service:"Set Next Service",correct_hours:"Correct Machine Hours"}[scope]||scope),
-name=id=>S.people.find(p=>p.id===id)?.full_name||S.people.find(p=>p.id===id)?.username||"Unassigned";function go(v){S.view=v;if(v!=="machines")S.fleetFilter=null;render()}
-function showFatal(message){console.error(message);let e=$("loadErr");if(e)e.textContent="⚠ "+message;else if($("loginMsg"))$("loginMsg").textContent=message}
+name=id=>{const person=S.people.find(p=>p.id===id);return person?.full_name||person?.username||(id?"Unknown employee":"Unassigned")};
+function go(view,filter=null){
+ S.view=view;
+ S.fleetFilter=filter;
+ if(filter)S.fleetSearch="";
+ render();
+}
+function appFetch(input,init){
+ const timeout=AbortSignal.timeout(20000);
+ const signal=init?.signal||input?.signal;
+ return fetch(input,{...init,signal:signal?AbortSignal.any([signal,timeout]):timeout});
+}
+function showFatal(message){
+ console.error(message);
+ const output=$(S.p?"loadErr":"loginMsg");
+ if(output)output.textContent=message;
+}
 function norm(s){return String(s||"").trim().toLowerCase()}
 function metrics(){let m=S.m||[],total=m.length,c=k=>m.filter(x=>norm(x.status)===k).length,working=c("working"),available=c("available"),breakdown=c("breakdown"),maintenance=c("maintenance"),offline=c("offline"),pct=n=>total?Math.round(n/total*1000)/10:0;return{total,working,available,breakdown,maintenance,offline,workingPct:pct(working),operationalPct:pct(working+available),availabilityPct:pct(total-breakdown)}}
-function openBreakdowns(){S.view="machines";S.fleetFilter={status:"breakdown"};S.fleetSearch="";render()}function render(){let nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["reports","Reports"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];$("nav").innerHTML=nav.filter(x=>["dashboard","machines","breakdowns","services","guide"].includes(x[0])||(x[0]==="service_due"&&canNextService())||mgr()).map(x=>'<button data-v="'+x[0]+'" class="'+(S.view===x[0]?"active":"")+'">'+x[1]+"</button>").join("");$("nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.v));$("main").innerHTML=({dashboard:dash,machines:machines,breakdowns:breakdowns,services:services,people:people,settings:settings,audit:audit,service_due:serviceDue,reports:reports,guide:guide}[S.view]||dash)();bind()}
+function openBreakdowns(){go("machines",{statuses:["breakdown"],label:"Breakdown"})}
+function render(){
+ const nav=[["dashboard","Dashboard"],["machines","Fleet"],["breakdowns","Breakdowns"],["services","Service"],["service_due","Service Due"],["reports","Reports"],["people","People"],["settings","Settings"],["audit","Audit"],["guide","Guide"]];
+ const publicViews=["dashboard","machines","breakdowns","services","service_due","guide"];
+ if(!mgr()&&!publicViews.includes(S.view))S.view="dashboard";
+ const navigation=$("nav");
+ const scroll=navigation.scrollLeft;
+ navigation.innerHTML=nav.filter(([view])=>publicViews.includes(view)||mgr()).map(([view,label])=>{
+  const active=S.view===view?' class="active" aria-current="page"':"";
+  return '<button type="button" data-v="'+view+'"'+active+'>'+label+'</button>';
+ }).join("");
+ navigation.scrollLeft=scroll;
+ navigation.querySelectorAll("button").forEach(button=>button.onclick=()=>go(button.dataset.v));
+ const main=$("main"),focus=main.contains(document.activeElement)?document.activeElement:null;
+ $("main").innerHTML=({dashboard:dash,machines,breakdowns,services,people,settings,audit,service_due:serviceDue,reports,guide}[S.view]||dash)();
+ bind();
+ if(focus?.id){
+  const next=$(focus.id);
+  if(next){
+   next.focus({preventScroll:true});
+   if(focus.selectionStart!=null&&typeof next.setSelectionRange==="function")next.setSelectionRange(focus.selectionStart,focus.selectionEnd);
+  }
+ }
+}
 function serviceSchedule(m){
  const current=Number(m.hours||0);
  const remaining=m.next_service_hours==null?null:Number(m.next_service_hours)-current;
@@ -43,12 +96,13 @@ function serviceSchedule(m){
  const validDate=rawDate&&Number.isFinite(rawDate.getTime())?rawDate:null;
  const today=new Date();today.setHours(0,0,0,0);
  const days=validDate?Math.round((validDate.getTime()-today.getTime())/86400000):null;
- const warning=Math.max(0,Number(m.service_warning_hours??50));
+ const warning=Math.max(0,Number(setting("service_warning_hours")??m.service_warning_hours??50));
  const due=(remaining!=null&&remaining<=0)||(days!=null&&days<=0);
  const soon=due||(remaining!=null&&remaining<=warning)||(days!=null&&days<=7);
  const priority=Math.min(remaining==null?999999:remaining,days==null?999999:days*8);
- const text=due?"Due now":(remaining!=null&&days!=null?(remaining+" h / "+days+" days left"):
-   remaining!=null?(Math.max(0,remaining).toLocaleString(undefined,{maximumFractionDigits:1})+" h left"):
+ const remainingLabel=remaining?.toLocaleString(undefined,{maximumFractionDigits:1});
+ const text=due?"Due now":(remaining!=null&&days!=null?(remainingLabel+" h / "+days+" days left"):
+   remaining!=null?(remainingLabel+" h left"):
    days!=null?(days+" days left"):"Not scheduled");
  return {due:!!due,soon:!!soon,priority,text,remaining,days};
 }
@@ -98,7 +152,7 @@ function dash(){
   '<button id="refresh" type="button" class="ops-refresh" aria-label="Refresh fleet overview">↻ Refresh</button></section>'+
   '<section class="ops-kpis" aria-label="Fleet key figures">'+
   dashboardMetric("Working now",x.workingPct.toFixed(1)+"%",x.working+" of "+x.total+" machines","working",'data-state="working"')+
-  dashboardMetric("Operational",x.operationalPct.toFixed(1)+"%",(x.working+x.available)+" working or available","operational",'data-go="machines"')+
+  dashboardMetric("Operational",x.operationalPct.toFixed(1)+"%",(x.working+x.available)+" working or available","operational",'data-operational="true"')+
   dashboardMetric("Breakdowns",String(x.breakdown),open.length+" open reports","breakdown",'data-filter-breakdowns="true"')+
   dashboardMetric("Service due",String(dueNow),dueNow?"Requires attention":"All schedules on track","service",'data-go="service_due"')+
   '</section>'+
@@ -146,34 +200,62 @@ function serviceDue(){
   (rows||'<tr><td colspan="5" class="empty">'+empty+'</td></tr>')+'</tbody></table></div>';
 }
 function serviceDueLabel(m){let parts=[];if(m.next_service_hours!=null)parts.push(Number(m.next_service_hours).toLocaleString()+" h");if(m.next_service_date)parts.push(new Date(m.next_service_date+"T00:00:00").toLocaleDateString());return parts.join(" / ")||"Not set"}
-function machines(){let q=((S.fleetSearch??$("mq")?.value)||"").toLowerCase(),filter=S.fleetFilter?.status,a=S.m.filter(m=>(!filter||norm(m.status)===filter)&&((m.name+" "+m.fleet_id+" "+(m.model||"")+" "+(m.site||"")).toLowerCase().includes(q)));return '<div class="page-head"><div><h1>Machines</h1><div class="muted">Status, hours and fleet service schedule</div></div>'+(canFleetManage()?'<button id="addM" class="primary">+ Add machine</button>':"")+'</div><div class="toolbar"><input type="search" id="mq" aria-label="Search machines" placeholder="Search machines" value="'+esc(S.fleetSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-fleet-table"><thead><tr><th>Machine</th><th>Status</th><th>Hours</th><th>Live Production</th><th>Next Service Due</th><th>Site</th><th>Actions</th></tr></thead><tbody>'+(a.map(m=>{let due=serviceSchedule(m).due;return '<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td><span class="status '+esc(m.status)+'">'+esc(m.status)+'</span></td><td>'+Number(m.hours||0).toLocaleString()+'</td><td><span class="production-clock" data-production-machine="'+esc(m.id)+'">'+productionClockText(m)+'</span></td><td><span class="status '+(due?"breakdown":"available")+'">'+esc(serviceDueLabel(m))+(due?" · DUE":"")+'</span></td><td>'+esc(m.site||"—")+'</td><td>'+((canFleetManage()||canCorrectHours()||canNextService())?
- (canFleetManage()||canCorrectHours()?'<button class="secondary editHours" data-id="'+m.id+'">Edit hours</button> ':"")+
- (canFleetManage()?'<button class="secondary st" data-id="'+m.id+'">Status</button> ':"")+
- (canNextService()?'<button class="secondary nextService" data-id="'+m.id+'">Next service</button> ':"")+
- (canFleetManage()?'<button class="danger rm" data-id="'+m.id+'">Remove</button>':"")
- :"View")+"</td></tr>"}).join("")||'<tr><td colspan="7" class="empty">No machines.</td></tr>')+"</tbody></table></div>"}
+function machines(){
+ const q=norm(S.fleetSearch),filter=S.fleetFilter;
+ const matching=S.m.filter(m=>(!filter||filter.statuses.includes(norm(m.status)))&&
+  norm([m.name,m.fleet_id,m.model,m.site].join(" ")).includes(q));
+ const rows=matching.map(m=>{
+  const due=serviceSchedule(m).due,id=esc(m.id);
+  const actions=[
+   canFleetManage()||canCorrectHours()?'<button class="secondary editHours" data-id="'+id+'">Edit hours</button>':"",
+   canFleetManage()?'<button class="secondary st" data-id="'+id+'">Status</button>':"",
+   canNextService()?'<button class="secondary nextService" data-id="'+id+'">Next service</button>':"",
+   canFleetManage()?'<button class="danger rm" data-id="'+id+'">Remove</button>':""
+  ].filter(Boolean).join(" ");
+  return '<tr><td><b>'+esc(m.name)+'</b><br>'+esc(m.fleet_id)+'</td><td><span class="status '+esc(m.status)+'">'+esc(m.status)+
+   '</span></td><td>'+Number(m.hours||0).toLocaleString()+'</td><td><span class="production-clock" data-production-machine="'+id+'">'+
+   productionClockText(m)+'</span></td><td><span class="status '+(due?"breakdown":"available")+'">'+esc(serviceDueLabel(m))+
+   (due?" · DUE":"")+'</span></td><td>'+esc(m.site||"—")+'</td><td>'+(actions||"—")+'</td></tr>';
+ }).join("");
+ return '<div class="page-head"><div><h1>Machines</h1><div class="muted">Status, hours and fleet service schedule</div></div>'+
+  (canFleetManage()?'<button id="addM" class="primary">+ Add machine</button>':"")+'</div><div class="toolbar">'+
+  '<input type="search" id="mq" aria-label="Search machines" placeholder="Search machines" value="'+esc(S.fleetSearch)+'"></div>'+
+  (filter?'<div class="fleet-filter"><span>Showing '+matching.length+' · '+esc(filter.label)+'</span><button type="button" id="clearFleetFilter" class="secondary">Clear filter</button></div>':"")+
+  '<div class="panel table-wrap"><table class="table ops-cards-table ops-fleet-table"><thead><tr><th>Machine</th><th>Status</th><th>Hours</th><th>Live Production</th><th>Next Service Due</th><th>Site</th><th>Actions</th></tr></thead><tbody>'+
+  (rows||'<tr><td colspan="7" class="empty">No machines match this view.</td></tr>')+'</tbody></table></div>';
+}
 function canFinishBreakdown(b){
- return !b.resolved_at&&(mgr()||(S.p?.active!==false&&b.assigned_to===S.user?.id));
+ return !b.resolved_at&&(mgr()||(!!S.user&&S.p?.active!==false&&b.assigned_to===S.user.id));
 }
 function canUploadBreakdownPhoto(b){
- return S.p?.active!==false&&(mgr()||b.reported_by===S.user?.id||b.assigned_to===S.user?.id);
+ return !!S.user&&S.p?.active!==false&&(mgr()||b.reported_by===S.user.id||b.assigned_to===S.user.id);
+}
+function breakdownTime(b){
+ const start=Date.parse(b.started_at),end=b.resolved_at?Date.parse(b.resolved_at):Date.now();
+ if(!Number.isFinite(start)||!Number.isFinite(end))return "—";
+ const minutes=Math.max(0,Math.floor((end-start)/60000));
+ return Math.floor(minutes/60).toLocaleString()+" h "+minutes%60+" min";
 }
 function breakdowns(){
  const q=(S.breakdownSearch||"").toLowerCase();
  const items=S.b.filter(b=>(getMachine(b.machine_id)+" "+(b.reason||"")).toLowerCase().includes(q));
  const rows=items.map(b=>{
   const photos=(S.breakdownPhotos||[]).filter(p=>p.breakdown_id===b.id);
-  const photoLinks=photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener noreferrer">Photo '+(i+1)+'</a>').join(" · ");
+  const photoLinks=photoButtons(photos,"breakdown");
+  const technician=S.people.find(p=>p.id===b.assigned_to&&p.active);
+  const whatsapp=mgr()&&!b.resolved_at?whatsAppLink(technician?.whatsapp_number||technician?.phone_number,
+   'Phatsema breakdown: '+getMachine(b.machine_id)+'\nIssue: '+b.reason+'\nPlease open Phatsema Fleet Operations for the repair details.') : "";
   const controls=[
     !b.resolved_at&&mgr()?'<button type="button" class="secondary assignBreakdown" data-id="'+esc(b.id)+'">Assign technician</button>':"",
     canFinishBreakdown(b)?'<button type="button" class="primary repair" data-id="'+esc(b.id)+'">Repair complete</button>':"",
-    canUploadBreakdownPhoto(b)?'<button type="button" class="secondary breakdownEvidence" data-id="'+esc(b.id)+'">Attach photos</button>':""
+    canUploadBreakdownPhoto(b)?'<button type="button" class="secondary breakdownEvidence" data-id="'+esc(b.id)+'">Attach photos</button>':"",
+    whatsapp?'<a class="secondary action-link" href="'+esc(whatsapp)+'" target="_blank" rel="noopener noreferrer">Open WhatsApp</a>':""
   ].filter(Boolean).join(" ");
   const state=b.resolved_at?"Resolved":b.repair_completed_at?"Repair recorded / not ready":"Open";
   return '<tr><td>'+esc(getMachine(b.machine_id))+'</td>'+
     '<td>'+esc(b.reason)+(b.notes?'<small>'+esc(b.notes)+'</small>':"")+'</td>'+
     '<td>'+esc(fmt(b.started_at))+'</td>'+
-    '<td>'+esc(state)+(b.not_ready_reason?'<small>Still down: '+esc(b.not_ready_reason)+'</small>':"")+'</td>'+
+    '<td>'+esc(state)+'<small>Downtime '+breakdownTime(b)+'</small>'+(b.not_ready_reason?'<small>Still down: '+esc(b.not_ready_reason)+'</small>':"")+'</td>'+
     '<td>'+esc(name(b.assigned_to))+'</td>'+
     '<td class="breakdown-action-cell">'+(photoLinks?'<div class="breakdown-photo-links">'+photoLinks+'</div>':"")+
       (controls||photoLinks?"":"—")+(controls?'<div class="breakdown-actions">'+controls+'</div>':"")+
@@ -187,7 +269,26 @@ function breakdowns(){
  '</tr></thead><tbody>'+(rows||'<tr><td colspan="6" class="empty">No breakdowns.</td></tr>')+
  '</tbody></table></div>';
 }
-function services(){let q=(S.serviceSearch||"").toLowerCase(),a=S.s.filter(x=>(getMachine(x.machine_id)+" "+(x.work_completed||"")).toLowerCase().includes(q));return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div><div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch||"")+'"></div><div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+a.map(x=>{let photos=S.photos.filter(p=>p.service_id===x.id);return '<tr><td>'+fmt(x.service_date)+'</td><td>'+esc(getMachine(x.machine_id))+'</td><td>'+esc(x.work_completed)+'</td><td>'+Number(x.hour_reading||0)+'</td><td>'+(photos.length?photos.map((p,i)=>'<a href="'+esc(p.url)+'" target="_blank" rel="noopener">View '+(i+1)+'</a>').join(" · "):"—")+'</td><td>'+esc(name(x.recorded_by))+'</td></tr>'}).join("")+'</tbody></table></div>'}
+function canUploadServicePhoto(service){
+ return !!S.user&&S.p?.active!==false&&(mgr()||service.recorded_by===S.user.id);
+}
+function photoButtons(photos,type){
+ return photos.map((photo,index)=>'<button type="button" class="secondary photo-button" data-photo-type="'+type+'" data-photo-id="'+
+  esc(photo.id)+'">Photo '+(index+1)+'</button>').join(" ");
+}
+function services(){
+ const q=norm(S.serviceSearch);
+ const rows=S.s.filter(service=>norm(getMachine(service.machine_id)+" "+service.work_completed).includes(q)).map(service=>{
+  const links=photoButtons(S.photos.filter(photo=>photo.service_id===service.id),"service");
+  const attach=canUploadServicePhoto(service)?'<button type="button" class="secondary serviceEvidence" data-id="'+esc(service.id)+'">Attach photos</button>':"";
+  return '<tr><td>'+esc(fmt(service.service_date))+'</td><td>'+esc(getMachine(service.machine_id))+'</td><td>'+esc(service.work_completed)+
+   '</td><td>'+Number(service.hour_reading||0)+'</td><td>'+([links,attach].filter(Boolean).join(" ")||"—")+'</td><td>'+esc(name(service.recorded_by))+'</td></tr>';
+ }).join("");
+ return '<div class="page-head"><div><h1>Service history</h1><div class="muted">Maintenance records</div></div><button id="addS" class="primary">+ Log service</button></div>'+
+  '<div class="toolbar"><input type="search" id="sq" aria-label="Search service history" placeholder="Search services" value="'+esc(S.serviceSearch)+'"></div>'+
+  '<div class="panel table-wrap"><table class="table ops-cards-table ops-service-table"><thead><tr><th>Date</th><th>Machine</th><th>Work</th><th>Hours</th><th>Photos</th><th>By</th></tr></thead><tbody>'+
+  (rows||'<tr><td colspan="6" class="empty">No service records match this view.</td></tr>')+'</tbody></table></div>';
+}
 // Management reporting reflects recorded events and a CURRENT fleet snapshot.
 // It must never mislabel current status as historical fleet availability.
 function reportModel(days=S.reportDays||30,now=Date.now()){
@@ -480,7 +581,32 @@ function manageAccess(userId){
    }catch(err){button.disabled=false;toast(err.message||String(err),true)}
  });
 }
-function settings(){let g=k=>S.settings.find(x=>x.key===k)?.value,enabled=g("whatsapp_alerts_enabled")!==false;return '<div class="page-head"><div><h1>Settings</h1><div class="muted">Fleet control & automatic service alerts</div></div><div>'+'<button id="save" class="primary">Save settings</button></div></div><div class="panel"><div class="form-grid"><div><label>Service interval (hours)</label><input id="si" type="number" min="1" value="'+esc(g("service_interval_hours")??500)+'"></div><div><label>WhatsApp alert threshold (hours before service)</label><input id="sw" type="number" min="0" value="'+esc(g("service_warning_hours")??50)+'"></div><div><label>WhatsApp recipient number</label><input id="wn" inputmode="tel" placeholder="e.g. 27821234567" value="'+esc(g("whatsapp_alert_number")??"")+'"></div><div><label>Automatic WhatsApp alerts</label><select id="we"><option value="true" '+(enabled?'selected':'')+'>Enabled</option><option value="false" '+(!enabled?'selected':'')+'>Disabled</option></select></div></div><p class="muted">When a machine reaches the configured warning threshold, Phatsema sends the service alert to the WhatsApp number entered above. The same machine will not be alerted again until a new service record starts the next service cycle.</p></div>'}function audit(){
+function setting(key){return S.settings.find(row=>row.key===key)?.value}
+function whatsappNumber(value){
+ const phone=String(value||"").trim();
+ if(!/^\+?[0-9][0-9 ()-]*$/.test(phone))return "";
+ const digits=phone.replace(/\D/g,"").replace(/^00/,"").replace(/^0([1-9][0-9]{8})$/,"27$1");
+ return /^[1-9][0-9]{7,14}$/.test(digits)?digits:"";
+}
+function whatsAppLink(number,message){
+ const phone=whatsappNumber(number);
+ return phone?"https://wa.me/"+phone+"?text="+encodeURIComponent(message):"";
+}
+function settings(){
+ const enabled=setting("whatsapp_alerts_enabled")===true;
+ const manual=realHead()?whatsAppLink(setting("whatsapp_alert_number"),"Phatsema Fleet Operations\n\n"):"";
+ return '<div class="page-head"><div><h1>Settings</h1><div class="muted">Service schedules and WhatsApp alerts</div></div>'+
+  (manual?'<a class="secondary action-link" href="'+esc(manual)+'" target="_blank" rel="noopener noreferrer">Open WhatsApp</a>':"")+
+  '<button type="submit" form="settingsForm" id="save" class="primary">Save settings</button></div>'+
+  '<form id="settingsForm" class="panel"><div class="form-grid">'+
+  '<div><label for="si">Default service interval for new machines (hours)</label><input id="si" type="number" min="1" max="1000000" step=".1" value="'+esc(setting("service_interval_hours")??500)+'" required></div>'+
+  '<div><label for="sw">Fleet service warning (hours before service)</label><input id="sw" type="number" min="0" max="1000000" step="any" value="'+esc(setting("service_warning_hours")??50)+'" required></div>'+
+  '<div><label for="wn">WhatsApp recipient number</label><input id="wn" type="tel" maxlength="30" placeholder="e.g. +27 82 123 4567" value="'+esc(setting("whatsapp_alert_number")??"")+'"></div>'+
+  '<div><label for="we">Automatic WhatsApp service alerts</label><select id="we"><option value="true" '+(enabled?'selected':'')+'>Enabled</option><option value="false" '+(!enabled?'selected':'')+'>Disabled</option></select></div></div>'+
+  '<p class="muted">Automatic reminders for hour-based service schedules require a connected WhatsApp Business account. Opening WhatsApp prepares a message for you to send.</p>'+
+  '<p id="settingsMessage" class="message" role="status"></p></form>';
+}
+function audit(){
  const exportButtons=realHead()?
   '<div class="audit-export-actions">'+
    '<button id="auditExportCSV" class="primary" type="button">Download full audit log (CSV)</button>'+
@@ -508,7 +634,7 @@ function guide(){
  '<section class="panel"><h2>Correct machine hours</h2><p>The Head of Operations or a temporarily authorized employee can correct a meter reading up or down and must provide a reason. Each correction is recorded in Audit.</p></section>'+
  '<section class="panel"><h2>Temporary access</h2><p>The Head opens <strong>People → Manage access</strong>, selects the permissions, sets an expiry and records a reason. Access can be revoked immediately and otherwise ends automatically at expiry. Permanent roles remain unchanged.</p></section>'+
  '<section class="panel"><h2>Employee onboarding</h2><p>Head of Operations: open <strong>People → Add employee</strong>, choose the role, and invite by email or create a temporary password. Invitations let employees choose their own password. Temporary passwords must be shared privately.</p></section>'+
- '<section class="panel"><h2>Your password</h2><p>Change the temporary password after signing in. Use a unique password of at least 12 characters.</p><button type="button" class="primary" id="changeMyPassword">Change my password</button></section>'+
+ '<section class="panel"><h2>Your password</h2><p>Change the temporary password after signing in. Use a unique password of at least 8 characters.</p><button type="button" class="primary" id="changeMyPassword">Change my password</button></section>'+
  '</div>';
 }
 function getMachine(id){return S.m.find(x=>x.id===id)?.name||"Unknown"}function modal(title,body,fn){
@@ -526,17 +652,20 @@ function getMachine(id){return S.m.find(x=>x.id===id)?.name||"Unknown"}function 
  form.onsubmit=async e=>{
   e.preventDefault();
   if(save.disabled)return;
+  const label=save.textContent;
   save.disabled=true;
   save.textContent="Saving…";
   feedback.textContent="";
   try{await fn(new FormData(form))}
   catch(error){const message=error?.message||String(error);feedback.textContent=message;toast(message,true)}
-  finally{save.disabled=false;save.textContent="Save"}
+  finally{save.disabled=false;save.textContent=label}
  };
  const first=form.querySelector('input:not([disabled]),select,textarea');
  if(first&&typeof first.focus==="function")first.focus({preventScroll:true});
 }
 async function load(){
+ const request=++loadRequest;
+ const state=S;
  const errEl=$("loadErr");
  if(errEl){errEl.textContent="Updating fleet data…";errEl.setAttribute("role","status")}
  const results=await Promise.allSettled([
@@ -545,11 +674,12 @@ async function load(){
   db.from("services").select("*").order("service_date",{ascending:false}),
   db.from("service_photos").select("*").order("created_at",{ascending:true}),
   db.from("breakdown_photos").select("*").order("created_at",{ascending:true}),
-  db.from("profiles").select("*").order("full_name"),
+  db.from("profiles").select(mgr()?"id,full_name,username,role,active,whatsapp_number,phone_number":"id,full_name,username,role,active").order("full_name"),
   db.from("app_settings").select("*"),
   db.from("machine_production_clocks").select("machine_id,accumulated_seconds,running_since"),
   db.from("temporary_access_grants").select("id,user_id,permission,granted_at,expires_at,revoked_at,granted_by,reason")
  ]);
+ if(S!==state||request!==loadRequest)return;
  const [m,b,s,ph,bph,pe,se,cl,gr]=results,failed=[];
  function rows(r,label,fallback){
    if(r.status!=="fulfilled"){failed.push(label+": "+(r.reason?.message||"connection failed"));return fallback}
@@ -558,11 +688,11 @@ async function load(){
    return r.value.data||[];
  }
  const machines=rows(m,"machines",S.m);
- const existingClocks=new Map((S.m||[]).map(v=>[v.id,{accumulated_seconds:v.production_seconds,running_since:v.production_started_at}]));
+ const existingClocks=new Map(S.m.filter(v=>v.production_seconds!==undefined).map(v=>[v.id,{accumulated_seconds:v.production_seconds,running_since:v.production_started_at}]));
  const clocks=rows(cl,"production clocks",null);
  const clockMap=new Map((clocks||[]).map(c=>[c.machine_id,c]));
  S.m=machines.map(machine=>{
-   const clock=clockMap.get(machine.id)||existingClocks.get(machine.id);
+   const clock=clocks===null?existingClocks.get(machine.id):clockMap.get(machine.id);
    return {...machine,production_seconds:clock?Number(clock.accumulated_seconds):undefined,
      production_started_at:clock?.running_since||null};
  });
@@ -573,29 +703,9 @@ async function load(){
  const grants=rows(gr,"temporary access",null);
  S.accessReady=grants!==null;
  if(S.accessReady)S.grants=grants;
- const photoRows=rows(ph,"service photos",null);
- if(photoRows!==null){
-   const signed=await Promise.allSettled(photoRows.map(async photo=>{
-     const result=await db.storage.from("fleet-evidence").createSignedUrl(photo.storage_path,3600);
-     if(result.error)throw result.error;
-     return {...photo,url:result.data.signedUrl};
-   }));
-   S.photos=signed.filter(r=>r.status==="fulfilled").map(r=>r.value);
-   const missed=signed.filter(r=>r.status==="rejected");
-   if(missed.length)failed.push(missed.length+" service photo(s) unavailable");
- }
- const breakdownPhotoRows=rows(bph,"breakdown photos",null);
- if(breakdownPhotoRows!==null){
-   const signed=await Promise.allSettled(breakdownPhotoRows.map(async photo=>{
-     const result=await db.storage.from("fleet-evidence").createSignedUrl(photo.storage_path,3600);
-     if(result.error)throw result.error;
-     return {...photo,url:result.data.signedUrl};
-   }));
-   S.breakdownPhotos=signed.filter(p=>p.status==="fulfilled").map(p=>p.value);
-   const failedPhotos=signed.filter(p=>p.status==="rejected");
-   if(failedPhotos.length)failed.push(failedPhotos.length+" breakdown photo(s) unavailable");
- }
- if(m.status==="fulfilled"&&!m.value.error)S.lastLoadedAt=new Date().toISOString();
+ S.photos=rows(ph,"service photos",S.photos);
+ S.breakdownPhotos=rows(bph,"breakdown photos",S.breakdownPhotos);
+ if(m.status==="fulfilled"&&m.value&&!m.value.error)S.lastLoadedAt=new Date().toISOString();
  S.loadErrors=failed;
  if(errEl){
    errEl.textContent=failed.length?"⚠ Some data could not refresh: "+failed.join(" | "):"";
@@ -608,21 +718,18 @@ function bind(){
  if(refresh)refresh.onclick=load;
  document.querySelectorAll("[data-go]").forEach(element=>element.onclick=()=>go(element.dataset.go));
  document.querySelectorAll("[data-state]").forEach(element=>element.onclick=()=>{
-  S.fleetFilter={status:element.dataset.state};S.fleetSearch="";go("machines");
+  const status=element.dataset.state;
+  go("machines",{statuses:[status],label:auditLabel(status)});
  });
+ document.querySelectorAll("[data-operational]").forEach(element=>element.onclick=()=>go("machines",{statuses:["working","available"],label:"Working or available"}));
  document.querySelectorAll("[data-filter-breakdowns]").forEach(element=>element.onclick=openBreakdowns);
+ if($("clearFleetFilter"))$("clearFleetFilter").onclick=()=>go("machines");
  const searches=[["mq","fleetSearch"],["bq","breakdownSearch"],["sq","serviceSearch"],["dq","dueSearch"]];
  searches.forEach(([id,key])=>{
   const input=$(id);if(!input)return;
   input.oninput=()=>{
    S[key]=input.value;
-   const start=input.selectionStart,end=input.selectionEnd;
    render();
-   const next=$(id);
-   if(next){
-    next.focus({preventScroll:true});
-    if(start!==null&&end!==null)try{next.setSelectionRange(start,end)}catch(_){}
-   }
   };
  });
  if($("quickBreakdown"))$("quickBreakdown").onclick=addBreakdown;
@@ -635,7 +742,7 @@ function bind(){
  document.querySelectorAll("[data-log-service]").forEach(button=>{
   button.onclick=()=>addService(button.dataset.logService);
  });
- if($("save"))$("save").onclick=saveSettings;
+ if($("settingsForm"))$("settingsForm").onsubmit=saveSettings;
  if($("ar"))$("ar").onclick=loadAudit;
  if($("auditExportCSV"))$("auditExportCSV").onclick=()=>exportFullAuditLog("csv");
  if($("auditExportPDF"))$("auditExportPDF").onclick=()=>exportFullAuditLog("pdf");
@@ -651,11 +758,36 @@ function bind(){
  document.querySelectorAll(".repair").forEach(element=>element.onclick=()=>repair(element.dataset.id));
  document.querySelectorAll(".assignBreakdown").forEach(element=>element.onclick=()=>assignBreakdown(element.dataset.id));
  document.querySelectorAll(".breakdownEvidence").forEach(element=>element.onclick=()=>attachBreakdownEvidence(element.dataset.id));
+ document.querySelectorAll(".serviceEvidence").forEach(element=>element.onclick=()=>attachServiceEvidence(element.dataset.id));
+ document.querySelectorAll("[data-photo-id]").forEach(element=>element.onclick=()=>openPhoto(element));
  if(S.view==="audit")loadAudit();
 }
-function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Name</label><input name="name" required></div><div><label>Fleet ID</label><input name="fleet_id" required></div><div><label>Model</label><input name="model"></div><div><label>Site</label><input name="site"></div><div><label>Hours</label><input name="hours" type="number" value="0"></div><div><label>Status</label><select name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',async f=>{let {error}=await db.rpc("create_machine",{p_name:f.get("name"),p_fleet_id:f.get("fleet_id"),p_model:f.get("model"),p_site:f.get("site"),p_hours:Number(f.get("hours")||0),p_status:f.get("status"),p_service_interval_hours:500,p_service_warning_hours:50});if(error)throw error;$("modalRoot").innerHTML="";toast("Machine added");load()})}function validPhotoFiles(files){
- const selected=Array.from(files||[]).filter(x=>x&&x.size);
- if(selected.length>5)throw new Error("Select no more than 5 photos per upload.");
+function addMachine(){
+ if(!canFleetManage())return;
+ modal("Add machine",'<div class="form-grid">'+
+  '<div><label for="newMachineName">Name</label><input id="newMachineName" name="name" required></div>'+
+  '<div><label for="newMachineId">Fleet ID</label><input id="newMachineId" name="fleet_id" required></div>'+
+  '<div><label for="newMachineModel">Model</label><input id="newMachineModel" name="model"></div>'+
+  '<div><label for="newMachineSite">Site</label><input id="newMachineSite" name="site"></div>'+
+  '<div><label for="newMachineHours">Hours</label><input id="newMachineHours" name="hours" type="number" min="0" step=".1" value="0" required></div>'+
+  '<div><label for="newMachineStatus">Status</label><select id="newMachineStatus" name="status"><option>working</option><option>available</option><option>maintenance</option><option>offline</option></select></div></div>',
+  async form=>{
+   const machineName=String(form.get("name")).trim(),fleetId=String(form.get("fleet_id")).trim();
+   if(!machineName||!fleetId)throw new Error("Enter a machine name and fleet ID.");
+   const {error}=await db.rpc("create_machine",{
+    p_name:machineName,p_fleet_id:fleetId,p_model:form.get("model"),p_site:form.get("site"),
+    p_hours:Number(form.get("hours")),p_status:form.get("status"),
+    p_service_interval_hours:setting("service_interval_hours")??500,p_service_warning_hours:setting("service_warning_hours")??50
+   });
+   if(error)throw error;
+   $("modalRoot").innerHTML="";
+   toast("Machine added");
+   await load();
+  });
+}
+function validPhotoFiles(files,limit=5){
+ const selected=Array.from(files||[]).filter(file=>file?.size);
+ if(selected.length>limit)throw new Error("Select no more than "+limit+" photos per upload.");
  const types=["image/jpeg","image/png","image/webp","image/heic","image/gif"];
  for(const file of selected){
   if(!types.includes(file.type))throw new Error("Only JPG, PNG, WebP, HEIC or GIF photos are supported.");
@@ -663,21 +795,43 @@ function addMachine(){modal("Add machine",'<div class="form-grid"><div><label>Na
  }
  return selected;
 }
-async function uploadBreakdownPhotos(id,files){
- const selected=validPhotoFiles(files);
- let uploaded=0,failed=0;
- for(const file of selected){
-   const cleaned=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,95);
-   const path="breakdowns/"+id+"/"+crypto.randomUUID()+"_"+cleaned;
-   const result=await db.storage.from("fleet-evidence").upload(path,file,{contentType:file.type,upsert:false});
-   if(result.error){failed++;continue}
-   const linked=await db.from("breakdown_photos").insert({breakdown_id:id,storage_path:path});
+async function uploadPhotos(type,id,files){
+ const storage=db.storage.from("fleet-evidence");
+ let uploaded=0;
+ for(const file of files){
+  const filename=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,95);
+  const path=type+"s/"+id+"/"+crypto.randomUUID()+"_"+filename;
+  try{
+   const result=await storage.upload(path,file,{contentType:file.type,upsert:false});
+   if(result.error)continue;
+   const linked=await db.from(type+"_photos").insert({[type+"_id"]:id,storage_path:path});
    if(linked.error){
-     failed++;
-     await db.storage.from("fleet-evidence").remove([path]).catch(()=>{});
-   }else uploaded++;
+    // An HTTP error may arrive after the link was committed. Check first.
+    const check=await db.from(type+"_photos").select("id").eq("storage_path",path).maybeSingle();
+    if(check.error)continue;
+    if(!check.data){await storage.remove([path]);continue}
+   }
+   uploaded++;
+  }catch(error){console.warn("Could not attach photo",error)}
  }
- return {uploaded,failed};
+ return {uploaded,failed:files.length-uploaded};
+}
+async function openPhoto(button){
+ const state=S;
+ const photos=button.dataset.photoType==="service"?S.photos:S.breakdownPhotos;
+ const photo=photos.find(item=>item.id===button.dataset.photoId);
+ if(!photo||button.disabled)return;
+ const tab=window.open("about:blank","_blank");
+ if(tab){tab.opener=null;tab.document.title="Phatsema photo";tab.document.body.textContent="Loading photo…"}
+ button.disabled=true;
+ try{
+  const {data,error}=await db.storage.from("fleet-evidence").createSignedUrl(photo.storage_path,300);
+  if(S!==state){tab?.close();return}
+  if(error)throw error;
+  if(tab)tab.location.replace(data.signedUrl);
+  else location.assign(data.signedUrl);
+ }catch(error){tab?.close();toast("Photo could not be opened. Try again.",true)}
+ finally{button.disabled=false}
 }
 function breakdownUploadText(result){
  if(!result)return "Breakdown recorded.";
@@ -686,7 +840,9 @@ function breakdownUploadText(result){
   :result.uploaded+" breakdown photo(s) saved.";
 }
 function addBreakdown(){
- const mo=S.m.map(m=>'<option value="'+esc(m.id)+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join("");
+ const openMachineIds=new Set(S.b.filter(b=>!b.resolved_at).map(b=>b.machine_id));
+ const mo=S.m.filter(m=>!openMachineIds.has(m.id)).map(m=>'<option value="'+esc(m.id)+'">'+esc(m.name)+" · "+esc(m.fleet_id)+"</option>").join("");
+ if(!mo)return toast("There are no machines without an open breakdown.",true);
  const people=S.people.filter(p=>p.active).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.full_name||p.username)+" · "+esc(p.role)+"</option>").join("");
  const assign=mgr()?'<label>Assigned technician</label><select name="assigned_to"><option value="">Unassigned</option>'+people+'</select>'
  :'<p class="muted">A foreman or manager can assign the technician after you report the issue.</p>';
@@ -704,13 +860,9 @@ function addBreakdown(){
    });
    if(error)throw error;
    // Do not re-submit the successful breakdown if some evidence uploads fail.
-   let evidence={uploaded:0,failed:0};
-   if(files.length){
-     try{evidence=await uploadBreakdownPhotos(data,files)}
-     catch(_){evidence={uploaded:0,failed:files.length}}
-   }
+   const evidence=files.length?await uploadPhotos("breakdown",data,files):{uploaded:0,failed:0};
    $("modalRoot").innerHTML="";
-   toast(files.length?("Breakdown reported. "+breakdownUploadText(evidence)):"Breakdown reported");
+   toast(files.length?("Breakdown reported. "+breakdownUploadText(evidence)):"Breakdown reported",evidence.failed>0);
    await load();
   });
 }
@@ -740,62 +892,71 @@ function attachBreakdownEvidence(id){
   async form=>{
    const files=validPhotoFiles(form.getAll("photos"));
    if(!files.length)throw new Error("Choose at least one photo.");
-   const result=await uploadBreakdownPhotos(id,files);
+   const result=await uploadPhotos("breakdown",id,files);
    $("modalRoot").innerHTML="";
    toast(breakdownUploadText(result),result.failed>0);
    await load();
   });
 }
+function attachServiceEvidence(id){
+ const service=S.s.find(record=>record.id===id);
+ if(!service||!canUploadServicePhoto(service))return;
+ modal("Attach service photos",'<label for="serviceEvidenceFiles">Choose photos</label>'+
+  '<input id="serviceEvidenceFiles" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple required>'+
+  '<p class="muted">Up to 8 photos, maximum 8 MB each.</p>',async form=>{
+   const files=validPhotoFiles(form.getAll("photos"),8);
+   if(!files.length)throw new Error("Choose at least one photo.");
+   const {uploaded,failed}=await uploadPhotos("service",id,files);
+   if(!uploaded)throw new Error("Photos could not be attached. Please try again.");
+   $("modalRoot").innerHTML="";
+   toast(uploaded+" photo(s) attached"+(failed?". Use Attach photos to retry "+failed+" failed upload(s).":"."),failed>0);
+   await load();
+  });
+}
 function addService(machineId){
- const options=S.m.map(m=>
-  '<option value="'+esc(m.id)+'"'+(m.id===machineId?' selected':'')+'>'+
-  esc(m.name)+' · '+esc(m.fleet_id)+' · '+Number(m.hours||0).toLocaleString()+' h</option>'
- ).join("");
+ if(!S.m.length)return toast("Add an active machine before logging a service.",true);
+ const options=S.m.map(m=>({id:String(m.id),search:norm(m.name+" "+m.fleet_id+" "+(m.site||"")),html:'<option value="'+esc(m.id)+'"'+(m.id===machineId?' selected':'')+'>'+esc(m.name)+' · '+esc(m.fleet_id)+' · '+Number(m.hours||0).toLocaleString()+' h</option>'}));
  modal("Log service",
-  '<label for="serviceMachine">Machine</label><select id="serviceMachine" name="machine_id" required>'+options+'</select>'+
+  '<label for="serviceFind">Find machine</label><input id="serviceFind" type="search" placeholder="Search by machine or fleet ID">'+
+  '<label for="serviceMachine">Machine</label><select id="serviceMachine" name="machine_id" required>'+options.map(option=>option.html).join("")+'</select>'+
   '<label for="serviceHours">Hour reading</label><input id="serviceHours" name="hours" type="number" min="0" step=".1" required>'+
+  '<p class="muted" id="serviceHoursHint"></p>'+
   '<label for="serviceWork">Work completed</label><textarea id="serviceWork" name="work" rows="4" required></textarea>'+
   '<label for="serviceNotes">Notes</label><textarea id="serviceNotes" name="notes" rows="3"></textarea>'+
   '<label for="servicePhotos">Photos of work done <span class="muted">(optional)</span></label>'+
   '<input id="servicePhotos" name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" multiple>'+
-  '<div class="muted">Add up to 8 photos. These are stored with the service record.</div>',
+  '<p class="muted">Up to 8 photos, maximum 8 MB each.</p>',
   async form=>{
-   const files=Array.from(form.getAll("photos")).filter(file=>file&&file.size).slice(0,8);
+   const files=validPhotoFiles(form.getAll("photos"),8);
    const {data,error}=await db.rpc("log_service",{
     p_machine_id:form.get("machine_id"),p_work_completed:form.get("work"),
     p_hour_reading:Number(form.get("hours")),p_notes:form.get("notes")
    });
    if(error)throw error;
-
-   // The service is already committed. A photo failure must not offer to save it again.
    const serviceId=data?.id||data;
-   let attached=0;
-   if(serviceId&&files.length){
-    const storage=db.storage.from("fleet-evidence");
-    for(const file of files){
-     const safe=(file.name||"photo").replace(/[^a-zA-Z0-9._-]/g,"_");
-     const path="services/"+serviceId+"/"+crypto.randomUUID()+"_"+safe;
-     try{
-      const upload=await storage.upload(path,file,{contentType:file.type,upsert:false});
-      if(upload.error)continue;
-      const link=await db.from("service_photos").insert({service_id:serviceId,storage_path:path});
-      if(link.error){
-       await storage.remove([path]).catch(()=>{});
-       continue;
-      }
-      attached++;
-     }catch(error){
-      console.warn("Could not attach service photo",error);
-     }
-    }
-   }
+   const {uploaded,failed}=serviceId&&files.length?await uploadPhotos("service",serviceId,files):{uploaded:0,failed:files.length};
    $("modalRoot").innerHTML="";
-   const missing=files.length-attached;
-   toast(missing?"Service logged. "+missing+" of "+files.length+" photos could not be attached.":
-    attached?"Service logged with "+attached+(attached===1?" photo":" photos"):"Service logged",missing>0);
+   toast(failed?"Service logged. Use Attach photos in Service history to retry "+failed+" failed upload(s).":
+    uploaded?"Service logged with "+uploaded+(uploaded===1?" photo":" photos"):"Service logged",failed>0);
    await load();
   }
  );
+ const select=$("serviceMachine"),hours=$("serviceHours"),hint=$("serviceHoursHint");
+ const setReading=()=>{
+  const machine=S.m.find(m=>m.id===select.value);
+  hours.min=machine?String(machine.hours):"0";
+  hours.value=machine?String(machine.hours):"";
+  hint.textContent=machine?"Current recorded reading: "+Number(machine.hours).toLocaleString()+" h":"";
+ };
+ select.onchange=setReading;
+ $("serviceFind").oninput=event=>{
+  const query=norm(event.target.value),previous=select.value;
+  const matches=options.filter(option=>option.search.includes(query));
+  select.innerHTML=matches.map(option=>option.html).join("")||'<option value="">No matching machines</option>';
+  if(matches.some(option=>option.id===previous))select.value=previous;
+  else setReading();
+ };
+ setReading();
 }
 function editMachine(id){
   const m=S.m.find(x=>x.id===id);
@@ -828,11 +989,8 @@ function editMachine(id){
         if(error)throw error;
       }else{
         if(hours<current)throw new Error("You need temporary Correct Hours access to reduce machine hours.");
-        const {error}=await db.rpc("update_machine",{
-          p_machine_id:id,p_name:m.name,p_fleet_id:m.fleet_id,
-          p_model:m.model||"",p_site:m.site||"",p_hours:hours,p_status:m.status,
-          p_service_interval_hours:m.service_interval_hours,
-          p_service_warning_hours:m.service_warning_hours
+        const {error}=await db.rpc("record_machine_hours",{
+          p_machine_id:id,p_new_hours:hours,p_expected_hours:current
         });
         if(error)throw error;
       }
@@ -842,8 +1000,56 @@ function editMachine(id){
     }
   );
 }
-function setNextService(id){let m=S.m.find(x=>x.id===id);if(!m)return;modal("Set next service for "+m.name,'<div class="form-grid"><div><label>Next service at machine hours</label><input name="hours" type="number" min="0" step=".1" value="'+(m.next_service_hours!=null?Number(m.next_service_hours):Number(m.hours||0)+Number(m.service_interval_hours||500))+'"></div><div><label>Next service date <span class="muted">(optional)</span></label><input name="date" type="date" value="'+esc(m.next_service_date||"")+'"></div></div><p class="muted">Only the Head of Operations or a temporarily authorized employee can change this schedule. You can set hours, a date, or both.</p>',async f=>{let hours=f.get("hours"),date=f.get("date"),h=hours===""?null:Number(hours);if(h!==null&&(!Number.isFinite(h)||h<0))throw new Error("Enter a valid next service hour reading.");if(h===null&&!date)throw new Error("Set a next service hour reading or service date.");let{error}=await db.rpc("set_machine_next_service",{p_machine_id:id,p_next_service_hours:h,p_next_service_date:date||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Next service updated");load()})}
-function status(id){modal("Change status",'<label>Status</label><select name="status"><option>working</option><option>available</option><option>breakdown</option><option>maintenance</option><option>offline</option></select><label>Reason</label><textarea name="reason"></textarea>',async f=>{let {error}=await db.rpc("set_machine_status",{p_machine_id:id,p_status:f.get("status"),p_reason:f.get("reason")||null});if(error)throw error;$("modalRoot").innerHTML="";toast("Status updated");load()})}async function removeMachine(id){let m=S.m.find(x=>x.id===id);if(!confirm("Remove "+m.name+" from the active fleet?"))return;let {error}=await db.rpc("retire_machine",{p_machine_id:id});if(error){toast(error.message,true);return}toast("Machine removed");load()}function repair(id){
+function setNextService(id){
+ const machine=S.m.find(m=>m.id===id);
+ if(!machine||!canNextService())return;
+ const suggested=machine.next_service_hours??(machine.next_service_date?"":Number(machine.hours||0)+Number(machine.service_interval_hours||500));
+ modal("Set next service for "+machine.name,'<div class="form-grid">'+
+  '<div><label for="nextHours">Next service at machine hours</label><input id="nextHours" name="hours" type="number" min="0" step="any" value="'+esc(suggested)+'"></div>'+
+  '<div><label for="nextDate">Next service date</label><input id="nextDate" name="date" type="date" value="'+esc(machine.next_service_date||"")+'"></div></div>'+
+  '<p class="muted">Set hours, a date, or both.</p>',async form=>{
+   const hours=form.get("hours"),date=form.get("date"),reading=hours===""?null:Number(hours);
+   if(reading!==null&&(!Number.isFinite(reading)||reading<0))throw new Error("Enter a valid next service hour reading.");
+   if(reading===null&&!date)throw new Error("Set a next service hour reading or date.");
+   const {error}=await db.rpc("set_machine_next_service",{p_machine_id:id,p_next_service_hours:reading,p_next_service_date:date||null});
+   if(error)throw error;
+   $("modalRoot").innerHTML="";
+   toast("Next service updated");
+   await load();
+  });
+}
+function status(id){
+ const machine=S.m.find(m=>m.id===id);
+ if(!machine||!canFleetManage())return;
+ const options=["working","available","breakdown","maintenance","offline"].map(value=>
+  '<option value="'+value+'"'+(machine.status===value?' selected':'')+'>'+auditLabel(value)+'</option>').join("");
+ modal("Change status for "+machine.name,'<label for="machineStatus">Status</label><select id="machineStatus" name="status">'+options+
+  '</select><label for="statusReason">Reason</label><textarea id="statusReason" name="reason" maxlength="500"></textarea>',async form=>{
+   const next=form.get("status"),reason=String(form.get("reason")||"").trim();
+   if(next===machine.status)throw new Error("Choose a different status.");
+   if((next==="breakdown"||machine.status==="breakdown")&&!reason)throw new Error("Enter a reason for this breakdown status change.");
+   const {error}=await db.rpc("set_machine_status",{p_machine_id:id,p_status:next,p_reason:reason||null});
+   if(error)throw error;
+   $("modalRoot").innerHTML="";
+   toast("Status updated");
+   await load();
+  });
+ const select=$("machineStatus"),reason=$("statusReason");
+ const update=()=>{reason.required=select.value!==machine.status&&(select.value==="breakdown"||machine.status==="breakdown")};
+ select.onchange=update;
+ update();
+}
+async function removeMachine(id){
+ const machine=S.m.find(m=>m.id===id);
+ if(!machine||!canFleetManage()||!confirm("Remove "+machine.name+" from the active fleet?"))return;
+ try{
+  const {error}=await db.rpc("retire_machine",{p_machine_id:id});
+  if(error)throw error;
+  toast("Machine removed");
+  await load();
+ }catch(error){toast(error.message||String(error),true)}
+}
+function repair(id){
  const b=S.b.find(x=>x.id===id);
  if(!b||!canFinishBreakdown(b))return toast("Only the assigned technician or management can complete this repair.",true);
  modal("Complete breakdown repair",
@@ -871,7 +1077,41 @@ function status(id){modal("Change status",'<label>Status</label><select name="st
  const update=()=>{const no=ready.value==="no";section.classList.toggle("hidden",!no);reason.required=no;};
  ready.onchange=update;update();
 }
-async function saveSettings(){for(let [key,value] of [["service_interval_hours",Number($("si").value)],["service_warning_hours",Number($("sw").value)],["whatsapp_alert_number",$("wn").value.trim()],["whatsapp_alerts_enabled",$("we").value==="true"]]){let {error}=await db.from("app_settings").upsert({key,value,updated_by:S.user.id},{onConflict:"key"});if(error){toast(error.message,true);return}}toast("Settings saved");load()}function auditLabel(a){return String(a||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+async function saveSettings(event){
+ event.preventDefault();
+ const button=$("save"),message=$("settingsMessage");
+ if(!mgr()||button.disabled)return;
+ const interval=Number($("si").value),warning=Number($("sw").value),rawNumber=$("wn").value.trim();
+ const number=whatsappNumber(rawNumber),enabled=$("we").value==="true";
+ if(!Number.isFinite(interval)||interval<1||interval>1000000||!Number.isFinite(warning)||warning<0||warning>1000000){
+  message.textContent="Enter a valid service interval and warning threshold.";
+  return;
+ }
+ if((rawNumber&&!number)||(enabled&&!number)){
+  message.textContent="Enter a WhatsApp number with its country code, or disable automatic alerts.";
+  $("wn").focus();
+  return;
+ }
+ const state=S;
+ const changes=[
+  ["service_interval_hours",interval],["service_warning_hours",warning],
+  ["whatsapp_alert_number",number],["whatsapp_alerts_enabled",enabled]
+ ].map(([key,value])=>({key,value,updated_by:S.user.id,updated_at:new Date().toISOString()}));
+ button.disabled=true;
+ message.textContent="Saving settings…";
+ try{
+  const {data,error}=await db.from("app_settings").upsert(changes,{onConflict:"key"}).select("key,value");
+  if(S!==state)return;
+  if(error)throw error;
+  if(data?.length!==changes.length)throw new Error("Some settings were not saved. Check your permissions and try again.");
+  const saved=new Set(data.map(row=>row.key));
+  S.settings=[...S.settings.filter(row=>!saved.has(row.key)),...data];
+  if(S.view==="settings")render();
+  toast("Settings saved");
+ }catch(error){message.textContent=error.message||String(error)}
+ finally{button.disabled=false}
+}
+function auditLabel(a){return String(a||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
 
 // Head-only audit export. Server checks the Head role again; this UI check
 // is not an authorization mechanism by itself.
@@ -938,6 +1178,7 @@ async function fetchCompleteAuditHistory(update){
 }
 async function exportFullAuditLog(format){
  if(!realHead())return toast("Head of Operations access required.",true);
+ const state=S;
  if(format!=="csv"&&format!=="pdf")return toast("Unsupported audit report format.",true);
  const buttons=[$("auditExportCSV"),$("auditExportPDF")].filter(Boolean);
  if(buttons.some(b=>b.disabled))return;
@@ -948,7 +1189,7 @@ async function exportFullAuditLog(format){
  try{
   const {rows,snapshot}=await fetchCompleteAuditHistory(update);
   await Promise.all([loadAuditMachineNames(rows),loadAuditActorNames(rows)]);
-  if(!realHead())throw new Error("The Head of Operations session is no longer active.");
+  if(S!==state||!realHead())throw new Error("The Head of Operations session is no longer active.");
   if(format==="csv"){
    const csv=auditExportCSV(rows);
    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
@@ -1054,82 +1295,238 @@ async function loadAuditMachineNames(rows){
  }
 }
 function auditDetail(x){let d=x.details||{};if(x.action==="temporary_access_granted"||x.action==="temporary_access_revoked")return accessLabel(d.permission||"access")+" · "+(x.action==="temporary_access_granted"?"Granted until "+(d.expires_at?fmt(d.expires_at):"expiry"):"Revoked")+(d.reason?" · Reason: "+d.reason:"");let from=d.from??d.before_status??d.before?.status,to=d.to??d.after_status??d.after?.status,h1=d.before_hours??d.before?.hours,h2=d.after_hours??d.after?.hours;if(x.action==="machine_hours_corrected")return "Current hours "+(d.before_hours??"—")+" → "+(d.after_hours??"—")+" · Reason: "+(d.reason||"not supplied");if(x.action==="machine_status_changed"&&from!==undefined)return "Status "+auditLabel(from)+" → "+auditLabel(to)+(d.reason?" · "+d.reason:"");if((x.action==="update_machine"||x.action==="machine_updated")&&(h1!==undefined||h2!==undefined||from!==undefined||to!==undefined)){let parts=[];if(h1!==undefined||h2!==undefined)parts.push("Hours "+(h1??"—")+" → "+(h2??"—"));if(from!==undefined||to!==undefined)parts.push("Status "+auditLabel(from??"—")+" → "+auditLabel(to??"—"));return parts.join(" · ")}let parts=[];Object.entries(d).forEach(([k,v])=>{if(k==="before"||k==="after"||v===null||v===undefined||v==="")return;let val=k==="machine_id"?(auditMachine(x)||String(v)):(typeof v==="object"?JSON.stringify(v):String(v));parts.push((k==="machine_id"?"Machine":auditLabel(k))+": "+val)});return parts.join(" · ")||"Action recorded"}
-function renderAudit(){let root=$("aud");if(!root)return;let q=norm($("auditSearch")?.value||""),action=$("auditAction")?.value||"",rows=S.audit.filter(x=>(!action||x.action===action)&&(!q||(auditLabel(x.action)+" "+x.entity_type+" "+(auditMachine(x)||"")+" "+auditActor(x.actor_id,x)+" "+auditDetail(x)).toLowerCase().includes(q)));let c=$("auditCount");if(c)c.textContent=rows.length+" entr"+(rows.length===1?"y":"ies");if(!rows.length){root.innerHTML='<div class="audit-empty"><div class="audit-empty-icon">✓</div><strong>No audit entries found</strong><span>Try a different search or action filter.</span></div>';return}root.innerHTML=rows.map(x=>{let machine=auditMachine(x),actor=auditActor(x.actor_id,x),entity=machine||auditLabel(x.entity_type||"system"),initial=(actor==="System"?"S":actor.trim().charAt(0).toUpperCase());return '<article class="audit-item"><div class="audit-icon">'+initial+'</div><div class="audit-main"><div class="audit-top"><div><strong>'+esc(auditLabel(x.action))+'</strong><span class="audit-entity">'+esc(entity)+'</span></div><time>'+esc(fmt(x.created_at))+'</time></div><div class="audit-detail">'+esc(auditDetail(x))+'</div><div class="audit-meta"><span>By '+esc(actor)+'</span><span>•</span><span>'+esc(auditLabel(x.entity_type||"system"))+'</span></div></div></article>'}).join("")}
-async function loadAudit(){let {data,error}=await db.from("audit_log").select("*").order("created_at",{ascending:false}).limit(100);if(error){$("aud").innerHTML='<div class="audit-empty"><strong>Could not load audit history</strong><span>'+esc(error.message)+"</span></div>";return}S.audit=data||[];await Promise.all([loadAuditMachineNames(S.audit),loadAuditActorNames(S.audit)]);let sel=$("auditAction");if(sel){let current=sel.value,actions=[...new Set(S.audit.map(x=>x.action).filter(Boolean))].sort();sel.innerHTML='<option value="">All actions</option>'+actions.map(a=>'<option value="'+esc(a)+'">'+esc(auditLabel(a))+'</option>').join("");sel.value=actions.includes(current)?current:""}renderAudit()}
+function renderAudit(){let root=$("aud");if(!root)return;let q=norm($("auditSearch")?.value||""),action=$("auditAction")?.value||"",rows=S.audit.filter(x=>(!action||x.action===action)&&(!q||(auditLabel(x.action)+" "+x.entity_type+" "+(auditMachine(x)||"")+" "+auditActor(x.actor_id,x)+" "+auditDetail(x)).toLowerCase().includes(q)));let c=$("auditCount");if(c)c.textContent=rows.length+" entr"+(rows.length===1?"y":"ies");if(!rows.length){root.innerHTML='<div class="audit-empty"><div class="audit-empty-icon">✓</div><strong>No audit entries found</strong><span>Try a different search or action filter.</span></div>';return}root.innerHTML=rows.map(x=>{let machine=auditMachine(x),actor=auditActor(x.actor_id,x),entity=machine||auditLabel(x.entity_type||"system"),initial=(actor==="System"?"S":actor.trim().charAt(0).toUpperCase());return '<article class="audit-item"><div class="audit-icon">'+esc(initial)+'</div><div class="audit-main"><div class="audit-top"><div><strong>'+esc(auditLabel(x.action))+'</strong><span class="audit-entity">'+esc(entity)+'</span></div><time>'+esc(fmt(x.created_at))+'</time></div><div class="audit-detail">'+esc(auditDetail(x))+'</div><div class="audit-meta"><span>By '+esc(actor)+'</span><span>•</span><span>'+esc(auditLabel(x.entity_type||"system"))+'</span></div></div></article>'}).join("")}
+async function loadAudit(){
+ const root=$("aud"),state=S;
+ if(!root||!mgr())return;
+ const {data,error}=await db.from("audit_log").select("*").order("created_at",{ascending:false}).limit(100);
+ if(S!==state||$("aud")!==root)return;
+ if(error){
+  root.innerHTML='<div class="audit-empty"><strong>Could not load audit history</strong><span>'+esc(error.message)+'</span></div>';
+  return;
+ }
+ S.audit=data||[];
+ await Promise.all([loadAuditMachineNames(S.audit),loadAuditActorNames(S.audit)]);
+ if(S!==state||$("aud")!==root)return;
+ const select=$("auditAction"),current=select.value;
+ const actions=[...new Set(S.audit.map(row=>row.action).filter(Boolean))].sort();
+ select.innerHTML='<option value="">All actions</option>'+actions.map(action=>'<option value="'+esc(action)+'">'+esc(auditLabel(action))+'</option>').join("");
+ select.value=actions.includes(current)?current:"";
+ renderAudit();
+}
 let resumingUser=null;
-async function login(e){if(e&&e.preventDefault)e.preventDefault();let btn=$("loginBtn"),msg=$("loginMsg");if(!db){if(msg)msg.textContent="Secure login is still loading. Please wait a moment and try again.";return}let email=$("loginEmail")?.value.trim()||"",password=$("loginPassword")?.value||"";if(!email||!password){if(msg)msg.textContent="Enter your email and password.";return}if(btn){btn.disabled=true;btn.textContent="Signing in…"}if(msg){msg.textContent="Connecting to Phatsema…";msg.classList.remove("error")}try{let result=await Promise.race([db.auth.signInWithPassword({email,password}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("Login timed out. Please check your connection and try again.")),15000))]);let{data,error}=result;if(error){if(msg)msg.textContent=error.message;return}if(data?.user){if(msg)msg.textContent="Login successful. Loading your fleet…";await resume(data.user)}else if(msg)msg.textContent="Login did not return a user session. Please try again."}catch(err){if(msg)msg.textContent=err?.message||String(err);console.error("Phatsema login error",err)}finally{if(btn){btn.disabled=false;btn.textContent="Log in"}}}
-async function resume(user){if(resumingUser===user.id)return;resumingUser=user.id;try{S.user=user;let{data,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();if(error){$("loginMsg").textContent="Profile lookup failed: "+error.message;return}if(!data){await db.auth.signOut();$("loginMsg").textContent="No Phatsema profile exists for this account.";return}S.p=data;$("userBadge").textContent=S.p.full_name||user.email;$("accountRole").textContent=String(S.p.role||"").replaceAll("_"," ");$("login").classList.add("hidden");$("app").classList.remove("hidden");try{await load()}catch(err){showFatal("Load failed: "+(err.message||String(err)))}}finally{resumingUser=null}}
-function showRecovery(){return showPasswordReset()}
-function showPasswordReset(invited=false){modal(invited?"Set your Phatsema password":"Set a new password",'<label>New password</label><input name="password" type="password" minlength="8" autocomplete="new-password" required><label>Confirm password</label><input name="confirm" type="password" minlength="8" autocomplete="new-password" required><p class="muted">Use at least 8 characters.</p>',async form=>{let password=String(form.get("password")||""),confirm=String(form.get("confirm")||"");if(password.length<8)throw new Error("Password must be at least 8 characters.");if(password!==confirm)throw new Error("Passwords do not match.");let{error}=await db.auth.updateUser({password});if(error)throw error;$("modalRoot").innerHTML="";await db.auth.signOut();$("login").classList.remove("hidden");$("app").classList.add("hidden");$("loginMsg").textContent="Password changed successfully. You can now log in with your new password."})}
-function recoveryMessage(error){let m=error?.message||String(error||"");if(/rate limit|429|over_email_send_rate_limit/i.test(m))return"Password reset emails are temporarily rate-limited. Please wait a while before trying again.";return m}
-async function requestPasswordReset(){let e=$("loginEmail").value.trim(),msg=$("loginMsg"),btn=$("forgotBtn");if(!e){msg.textContent="Enter your email first.";return}let key="phatsema-reset-last-"+e.toLowerCase(),last=Number(localStorage.getItem(key)||0),wait=Math.ceil((60000-(Date.now()-last))/1000);if(wait>0){msg.textContent=`Please wait ${wait}s before requesting another reset email.`;return}if(btn)btn.disabled=true;msg.textContent="Sending password reset email…";let{error}=await db.auth.resetPasswordForEmail(e,{redirectTo:new URL(location.href).href.split("#")[0]});if(error){msg.textContent=recoveryMessage(error);if(btn)btn.disabled=false;return}localStorage.setItem(key,String(Date.now()));msg.textContent="Password reset email sent. Check your inbox and spam folder.";setTimeout(()=>{if(btn)btn.disabled=false},60000)}
+let passwordLink=false;
+function clearSession(message=""){
+ S=newState();
+ resumingUser=null;
+ passwordLink=false;
+ for(const id of ["main","nav","modalRoot","toastRoot"])$(id).innerHTML="";
+ for(const id of ["userBadge","accountRole","loadErr"])$(id).textContent="";
+ $("accountMenu").open=false;
+ $("logoutBtn").disabled=false;
+ $("loginPassword").value="";
+ $("loginMsg").textContent=message;
+ $("app").classList.add("hidden");
+ $("login").classList.remove("hidden");
+}
+async function login(event){
+ event.preventDefault();
+ const button=$("loginBtn"),message=$("loginMsg");
+ if(!db||button.disabled||passwordLink)return;
+ const identifier=$("loginEmail").value.trim(),password=$("loginPassword").value;
+ if(!identifier||!password){message.textContent="Enter your email or username and password.";return}
+ button.disabled=true;
+ button.textContent="Signing in…";
+ message.textContent="Connecting to Phatsema…";
+ try{
+  let result;
+  if(identifier.includes("@")){
+   result=await db.auth.signInWithPassword({email:identifier,password});
+  }else{
+   const {data,error}=await db.functions.invoke("username-login-v1",{body:{username:identifier,password}});
+   if(error||!data?.session){
+    const status=error?.context?.status;
+    throw new Error(status===400||status===401?"Invalid username or password.":status===429?"Too many attempts. Try again in a moment.":"Username sign-in is unavailable. Try your email address.");
+   }
+   result=await db.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
+  }
+  if(result.error)throw result.error;
+  if(!result.data?.user)throw new Error("Sign-in did not return a session. Please try again.");
+  message.textContent="Loading your fleet…";
+  await resume(result.data.user);
+ }catch(error){message.textContent=error.message||String(error)}
+ finally{button.disabled=false;button.textContent="Log in"}
+}
+async function resume(user){
+ if(passwordLink||resumingUser===user.id||S.p&&S.user?.id===user.id)return;
+ if(S.user&&S.user.id!==user.id)clearSession();
+ resumingUser=user.id;
+ const state=S;
+ try{
+  const {data,error}=await db.from("profiles").select("id,full_name,role,active,full_access").eq("id",user.id).maybeSingle();
+  if(S!==state||passwordLink)return;
+  if(error)throw new Error("Could not load your Phatsema profile. "+error.message);
+  if(!data?.active){
+   await db.auth.signOut({scope:"local"});
+   clearSession("This account does not have an active Phatsema profile. Contact your administrator.");
+   return;
+  }
+  S.user=user;
+  S.p=data;
+  $("userBadge").textContent=data.full_name||user.email;
+  $("accountRole").textContent=String(data.role||"").replaceAll("_"," ");
+  $("loginPassword").value="";
+  $("login").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  await load();
+ }catch(error){if(S===state)showFatal(error.message||String(error))}
+ finally{if(S===state&&resumingUser===user.id)resumingUser=null}
+}
+function showPasswordReset(invited=false){
+ modal(invited?"Set your Phatsema password":"Set a new password",
+  '<label for="newAccountPassword">New password</label><input id="newAccountPassword" name="password" type="password" minlength="8" autocomplete="new-password" required>'+
+  '<label for="confirmAccountPassword">Confirm password</label><input id="confirmAccountPassword" name="confirm" type="password" minlength="8" autocomplete="new-password" required>',
+  async form=>{
+   const password=String(form.get("password")||""),confirmation=String(form.get("confirm")||"");
+   if(password.length<8)throw new Error("Password must be at least 8 characters.");
+   if(password!==confirmation)throw new Error("Passwords do not match.");
+   const {error}=await db.auth.updateUser({password});
+   if(error)throw error;
+   $("modalRoot").innerHTML="";
+   await db.auth.signOut({scope:"local"});
+   clearSession("Password changed. Log in with your new password.");
+  });
+ if(passwordLink){
+  $("cancel").onclick=async()=>{
+   if($("mf").querySelector('button[type="submit"]').disabled)return;
+   $("cancel").disabled=true;
+   try{
+    const {error}=await db.auth.signOut({scope:"local"});
+    if(error)throw error;
+    clearSession("Password setup cancelled. Request a new link to try again.");
+   }catch(error){$("modalFeedback").textContent=error.message;$("cancel").disabled=false}
+  };
+  // The modal's normal Escape handler cannot dismiss a live recovery session.
+  $("mb").addEventListener("keydown",event=>{if(event.key==="Escape"){event.stopImmediatePropagation();$("cancel").click()}},true);
+ }
+}
+async function requestPasswordReset(){
+ const email=$("loginEmail").value.trim(),message=$("loginMsg"),button=$("forgotBtn");
+ if(button.disabled||passwordLink)return;
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){message.textContent="Enter your email address to reset your password.";return}
+ button.disabled=true;
+ message.textContent="Requesting a password reset email…";
+ try{
+  const redirectTo=location.origin+location.pathname;
+  const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error)throw error;
+  message.textContent="If this email is registered, check your inbox and spam folder for the reset link.";
+ }catch(error){
+  message.textContent=error.status===429||/rate limit/i.test(error.message)?
+   "Too many password reset requests. Wait before trying again.":(error.message||"Could not request a password reset. Try again.");
+ }finally{button.disabled=false}
+}
 async function signOut(){
  const button=$("logoutBtn");
  button.disabled=true;
  try{
-  const {error}=await db.auth.signOut();
+  const {error}=await db.auth.signOut({scope:"local"});
   if(error)throw error;
-  location.reload();
- }catch(error){
-  button.disabled=false;
-  toast("Could not log out: "+(error.message||String(error)),true);
- }
+  clearSession();
+ }catch(error){button.disabled=false;toast("Could not log out: "+(error.message||String(error)),true)}
 }
-function boot(){const invited=/(?:[?#&])type=invite(?:[&#]|$)/.test(location.href);let inviteShown=false;const openInvite=()=>{if(!inviteShown){inviteShown=true;showPasswordReset(true)}};initAccountMenu();if(!initSupabase())return;let f=$("loginForm");if(f)f.onsubmit=login;let fb=$("forgotBtn");if(fb)fb.onclick=requestPasswordReset;const logout=$("logoutBtn");if(logout)logout.onclick=signOut;db.auth.onAuthStateChange(async(event,session)=>{if(event==="PASSWORD_RECOVERY"){showRecovery();return}if(event==="SIGNED_OUT"){const menu=$("accountMenu");if(menu)menu.open=false;S.user=null;S.p=null;$("login")?.classList.remove("hidden");$("app")?.classList.add("hidden");return}if(event==="SIGNED_IN"&&session?.user){if(invited){openInvite();return}await resume(session.user)}});db.auth.getSession().then(async({data})=>{if(location.hash.includes("type=recovery")){showRecovery();return}if(data?.session?.user){if(invited)openInvite();else await resume(data.session.user)}else $("login")?.classList.remove("hidden")}).catch(err=>showFatal(err.message||String(err)))}
+function boot(){
+ initAccountMenu();
+ if(!initSupabase())return;
+ const fragment=new URLSearchParams(location.hash.slice(1));
+ const query=new URLSearchParams(location.search);
+ const linkType=fragment.get("type")||query.get("type");
+ const linkFailed=fragment.has("error")||query.has("error");
+ let linkPending=!linkFailed&&(linkType==="recovery"||linkType==="invite");
+ $("loginForm").onsubmit=login;
+ $("forgotBtn").onclick=requestPasswordReset;
+ $("loginBtn").disabled=false;
+ $("forgotBtn").disabled=false;
+ $("logoutBtn").onclick=signOut;
+ if(linkFailed)$("loginMsg").textContent="This sign-in link could not be used. Request a new password reset link.";
+ db.auth.onAuthStateChange((event,session)=>{
+  if(event==="SIGNED_OUT"){clearSession();return}
+  if(event==="PASSWORD_RECOVERY"||(linkPending&&linkType==="invite"&&event==="SIGNED_IN")){
+   linkPending=false;
+   passwordLink=true;
+   history.replaceState(null,"",location.pathname);
+   showPasswordReset(linkType==="invite");
+   return;
+  }
+  if(event==="INITIAL_SESSION"&&!session?.user&&linkPending){
+   linkPending=false;
+   $("loginMsg").textContent="This sign-in link could not be used. Request a new password reset link.";
+  }
+  if(!linkPending&&!passwordLink&&session?.user&&(event==="SIGNED_IN"||event==="INITIAL_SESSION"&&!linkFailed)){
+   // The auth client holds its session lock while notifying subscribers.
+   const state=S;
+   setTimeout(()=>{if(S===state)resume(session.user)},0);
+  }
+ });
+}
 window.addEventListener("error",e=>showFatal(e.message||"Unexpected error"));
 window.addEventListener("unhandledrejection",e=>showFatal(e.reason?.message||String(e.reason||"Unhandled promise rejection")));
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 
 // Live display is derived from server timestamps; no per-second database writes.
 function productionClockSeconds(m){let base=Number(m.production_seconds||0);if(m.active&&norm(m.status)==='working'&&m.production_started_at){let start=Date.parse(m.production_started_at);if(Number.isFinite(start))base+=Math.max(0,(Date.now()-start)/1000)}return Math.max(0,base)}
-function productionClockText(m){if(m.production_seconds===undefined)return 'Not configured';let secs=Math.floor(productionClockSeconds(m));let h=Math.floor(secs/3600),min=Math.floor(secs%3600/60),sec=secs%60;return h.toLocaleString()+'h '+String(min).padStart(2,'0')+'m '+String(sec).padStart(2,'0')+'s'+(m.active&&norm(m.status)==='working'&&m.production_started_at?' ●':'')}
+function productionClockText(m){if(!Number.isFinite(m.production_seconds))return 'Not configured';let secs=Math.floor(productionClockSeconds(m));let h=Math.floor(secs/3600),min=Math.floor(secs%3600/60),sec=secs%60;return h.toLocaleString()+'h '+String(min).padStart(2,'0')+'m '+String(sec).padStart(2,'0')+'s'+(m.active&&norm(m.status)==='working'&&m.production_started_at?' ●':'')}
 setInterval(()=>{document.querySelectorAll('[data-production-machine]').forEach(el=>{let m=S.m?.find(x=>x.id===el.dataset.productionMachine);if(m)el.textContent=productionClockText(m)})},1000);
 
 let productionClockRefreshing=false;
 async function refreshProductionClocks(){
-  if(productionClockRefreshing||!db||!S.user||!S.m.length||document.hidden)return;
-  productionClockRefreshing=true;
-  try{
-    const [clockResult,machineResult]=await Promise.all([
-      db.from("machine_production_clocks").select("machine_id,accumulated_seconds,running_since"),
-      db.from("machines").select("id,status,active").eq("active",true)
-    ]);
-    if(clockResult.error||machineResult.error)return;
-    const clocks=new Map((clockResult.data||[]).map(c=>[c.machine_id,c]));
-    const machines=new Map((machineResult.data||[]).map(m=>[m.id,m]));
-    let changed=S.m.some(m=>!machines.has(m.id));
-    S.m=S.m.filter(m=>machines.has(m.id)).map(m=>{
-      const updated=machines.get(m.id),c=clocks.get(m.id);
-      if(norm(updated.status)!==norm(m.status)||updated.active!==m.active)changed=true;
-      return {...m,status:updated.status,active:updated.active,
-        production_seconds:c?Number(c.accumulated_seconds):undefined,
-        production_started_at:c?.running_since||null};
-    });
-    if(changed&&(S.view==="machines"||S.view==="dashboard"))render();
-  }catch(e){/* retain last known counters if temporarily offline */}
-  finally{productionClockRefreshing=false}
+ if(productionClockRefreshing||!db||!S.p||document.hidden)return;
+ productionClockRefreshing=true;
+ const state=S,request=loadRequest;
+ try{
+  const {data,error}=await db.from("machines").select("id,updated_at").eq("active",true);
+  if(error||S!==state||loadRequest!==request||!data)return;
+  const timestamps=new Map(data.map(machine=>[machine.id,machine.updated_at]));
+  const changed=timestamps.size!==S.m.length||S.m.some(machine=>!timestamps.has(machine.id)||timestamps.get(machine.id)!==machine.updated_at);
+  if(changed&&["dashboard","machines","breakdowns","services","service_due","reports"].includes(S.view))await load();
+ }catch(_){/* Retain the last known fleet state during a connection loss. */}
+ finally{productionClockRefreshing=false}
 }
 setInterval(refreshProductionClocks,15000);
 
 let accessRefreshPending=false;
-// Grant/revoke changes become visible to signed-in employees without a page reload.
-// Server-side permissions always take effect immediately, independent of this UI poll.
 async function refreshTemporaryAccess(){
- if(accessRefreshPending||!db||!S.user||document.hidden)return;
+ if(accessRefreshPending||!db||!S.user||!S.p||document.hidden)return;
  accessRefreshPending=true;
+ const state=S,request=loadRequest;
  try{
-   const {data,error}=await db.from("temporary_access_grants")
-     .select("id,user_id,permission,granted_at,expires_at,revoked_at,granted_by,reason");
-   if(error)return;
-   const prior=JSON.stringify((S.grants||[]).map(g=>[g.id,g.revoked_at,g.expires_at]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
-   const current=JSON.stringify((data||[]).map(g=>[g.id,g.revoked_at,g.expires_at]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
-   const wasReady=S.accessReady;
-   S.grants=data||[];
-   S.accessReady=true;
-   if(prior!==current||!wasReady)render();
-   else if(S.view==="people"&&realHead())render();
- }catch(_error){/* permissions remain enforced by Supabase even when temporarily offline */}
+  const [profile,grants]=await Promise.all([
+   db.from("profiles").select("id,role,active,full_access").eq("id",S.user.id).maybeSingle(),
+   db.from("temporary_access_grants").select("id,user_id,permission,granted_at,expires_at,revoked_at,granted_by,reason")
+  ]);
+  if(S!==state||loadRequest!==request)return;
+  if(!profile.error&&!profile.data?.active){
+   try{await db.auth.signOut({scope:"local"})}
+   finally{clearSession("This account does not have an active Phatsema profile. Contact your administrator.")}
+   return;
+  }
+  const roleChanged=!profile.error&&(S.p.role!==profile.data.role||S.p.full_access!==profile.data.full_access);
+  if(roleChanged){
+   S.p={...S.p,...profile.data};
+   $("accountRole").textContent=String(S.p.role).replaceAll("_"," ");
+   if(!mgr())S.people=S.people.map(({whatsapp_number,phone_number,...person})=>person);
+   if(!realHead())$("modalRoot").innerHTML="";
+  }
+  if(grants.error){if(roleChanged)render();return}
+  const active=(grants.data||[]).filter(grant=>!grant.revoked_at&&Date.parse(grant.expires_at)>Date.now())
+   .sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const shouldRender=JSON.stringify(S.grants)!==JSON.stringify(active)||!S.accessReady;
+  S.grants=active;
+  S.accessReady=true;
+  if(roleChanged)await load();
+  else if(shouldRender&&["machines","service_due","people"].includes(S.view))render();
+ }catch(_){/* Supabase continues to enforce current permissions. */}
  finally{accessRefreshPending=false}
 }
 setInterval(refreshTemporaryAccess,20000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshTemporaryAccess()});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshTemporaryAccess();refreshProductionClocks()}});

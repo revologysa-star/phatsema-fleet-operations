@@ -83,7 +83,8 @@ test("workflow migration blocks direct table writes and preserves breakdown stat
 test("report export and photo UX has mobile and print styling",()=>{
  assert.match(source,/function exportFleetReport\(/);
  assert.match(source,/function attachBreakdownEvidence\(/);
- assert.match(source,/function uploadBreakdownPhotos\(/);
+ assert.match(source,/uploadPhotos\("breakdown",/);
+ assert.match(source,/uploadPhotos\("service",/);
  assert.match(source,/window\.print\(\)/);
  assert.match(styles,/@media print/);
  assert.match(styles,/\.report-stats/);
